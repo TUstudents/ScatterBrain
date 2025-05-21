@@ -1,0 +1,26 @@
+[project]
+name = "scatterbrain"
+version = "0.1.0"
+description = "ScatterBrain Python Library"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+dependencies = []
+requires-python = ">=3.9"
+readme = "README.md"
+license = {file = "LICENSE"}
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
+[tool.ruff]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
+line-length = 88
