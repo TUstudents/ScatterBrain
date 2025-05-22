@@ -163,51 +163,70 @@ class ScatteringCurve1D:
         """Return the number of data points in the curve."""
         return len(self.q)
 
-    def __getitem__(self, key: Union[int, slice, np.ndarray]) -> 'ScatteringCurve1D':
-        """
-        Allows slicing or indexing of the ScatteringCurve1D object.
-
-        Returns a new ScatteringCurve1D object containing the subset of data.
-        Metadata is deep-copied.
-
+    def __getitem__(self, key):
+        """Allows slicing/indexing, returns a new ScatteringCurve1D object.
+        
         Parameters
         ----------
-        key : Union[int, slice, np.ndarray]
-            An integer index, a slice object, or a boolean/integer NumPy array
-            used for indexing.
-
+        key : Union[int, slice, np.ndarray, List]
+            Index, slice, or boolean/integer array for selecting data points.
+            
         Returns
         -------
         ScatteringCurve1D
-            A new ScatteringCurve1D object with the selected data points.
+            New curve object containing the selected data points.
+            
+        Raises
+        ----
+        IndexError
+            If indices are out of bounds.
+        TypeError
+            If key is of unsupported type or contains floats.
         """
-        # Handle single integer index to always return a 1D array with one element
-        if isinstance(key, (int, np.integer)):
-            # Handle negative indices
-            idx = key if key >= 0 else len(self.q) + key
-            if idx < 0 or idx >= len(self.q):
-                raise IndexError("Index out of range")
-            q = self.q[np.newaxis, idx]
-            intensity = self.intensity[np.newaxis, idx]
-            error = self.error[np.newaxis, idx] if self.error is not None else None
+        # Convert lists to numpy arrays for consistent handling
+        if isinstance(key, list):
+            key = np.array(key)
+            
+        # Handle different types of keys
+        if isinstance(key, (int, slice)):
+            # Existing integer and slice handling
+            if isinstance(key, int):
+                if key < -len(self.q) or key >= len(self.q):
+                    raise IndexError("Index out of range")
+            else:  # slice
+                indices = range(*key.indices(len(self.q)))
+                if len(indices) == 0:
+                    raise IndexError("Empty slice")
+        elif isinstance(key, np.ndarray):
+            if key.dtype == bool:
+                # Boolean indexing
+                if key.shape != self.q.shape:
+                    raise IndexError(f"Boolean index did not match array shape. Got {key.shape} != {self.q.shape}")
+            elif np.issubdtype(key.dtype, np.integer):
+                # Integer array indexing
+                if np.any((key >= len(self.q)) | (key < -len(self.q))):
+                    raise IndexError("Integer indices out of bounds")
+            elif np.issubdtype(key.dtype, np.floating):
+                raise TypeError("Float indices not supported. Use interpolation methods instead.")
+            else:
+                raise TypeError(f"Unsupported index array type: {key.dtype}")
         else:
-            q = self.q[key]
-            intensity = self.intensity[key]
-            error = self.error[key] if self.error is not None else None
-            # Check for out-of-bounds for slices and masks
-            if q.size == 0:
-                raise IndexError("Index out of range or resulted in empty selection")
+            raise TypeError(f"Invalid index type: {type(key)}")
+
+        # Create new curve with indexed data
+        new_q = np.atleast_1d(self.q[key])
+        new_intensity = np.atleast_1d(self.intensity[key])
+        new_error = np.atleast_1d(self.error[key]) if self.error is not None else None
         new_metadata = copy.deepcopy(self.metadata)
-        new_metadata["processing_history"].append(
-            f"Sliced/indexed from original (key: {key})."
-        )
+        new_metadata["processing_history"].append(f"Indexed with {type(key).__name__} indexer")
+        
         return ScatteringCurve1D(
-            q=q,
-            intensity=intensity,
-            error=error,
+            q=new_q,
+            intensity=new_intensity,
+            error=new_error,
             metadata=new_metadata,
             q_unit=self.q_unit,
-            intensity_unit=self.intensity_unit,
+            intensity_unit=self.intensity_unit
         )
 
     def copy(self) -> 'ScatteringCurve1D':
@@ -220,16 +239,29 @@ class ScatteringCurve1D:
             A new, independent ScatteringCurve1D object.
         """
         new_metadata = copy.deepcopy(self.metadata)
-        new_metadata.setdefault("processing_history", []).append("Object deep copied.")
-
-        return ScatteringCurve1D(
-            q=np.copy(self.q),
-            intensity=np.copy(self.intensity),
-            error=np.copy(self.error) if self.error is not None else None,
-            metadata=new_metadata,
-            q_unit=self.q_unit,
-            intensity_unit=self.intensity_unit,
+        if "processing_history" in new_metadata:
+            new_metadata["processing_history"].append("Object deep copied.")
+        else:
+            new_metadata["processing_history"] = ["Object deep copied."]
+        # Avoid duplicating "ScatteringCurve1D object created." in processing_history
+        return self.__class__.__new__(self.__class__).__init_copy__(
+            self.q.copy(),
+            self.intensity.copy(),
+            self.error.copy() if self.error is not None else None,
+            new_metadata,
+            self.q_unit,
+            self.intensity_unit,
         )
+
+    def __init_copy__(self, q, intensity, error, metadata, q_unit, intensity_unit):
+        # Internal method to bypass __init__'s "object created" history entry
+        self.q = q
+        self.intensity = intensity
+        self.error = error
+        self.metadata = metadata
+        self.q_unit = q_unit
+        self.intensity_unit = intensity_unit
+        return self
 
     def to_dict(self, include_metadata: bool = True) -> Dict[str, Any]:
         """
