@@ -1,0 +1,7 @@
+# Test data file: q, I, err (space separated)
+# Second header line
+0.1  100.0  10.0
+0.2   80.0   8.0
+0.3   50.0   5.0
+0.4   30.0   3.0
+0.5   10.0   1.0

@@ -1,0 +1,5 @@
+q   I   err
+0.1 100 text_instead_of_number
+0.2 80  8.0
+0.3 not_a_number 5.0
+0.4 30  3.0

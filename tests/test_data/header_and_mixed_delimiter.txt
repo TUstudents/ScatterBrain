@@ -1,0 +1,11 @@
+This is some fancy header information.
+Sample Name: My Sample X
+Date: 2023-10-27
+Wavelength_nm: 0.154
+--- Data Starts Below ---
+Scattering_Angle(q)  Intensity(arb.unit)  Error_Value
+   0.10               1.2e3                12.0
+   0.20               9.5e2                 9.5
+   0.30               5.0e2                 5.0
+   0.40               2.1e2                 2.1    # Comment after data
+   0.50               1.0e2                 1.0    # Another comment

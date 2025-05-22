@@ -77,6 +77,10 @@ class ScatteringCurve1D:
         intensity_unit : IntensityUnit, optional
             Unit of intensity values, by default "a.u.".
         """
+        # Set units as attributes
+        self.q_unit = q_unit
+        self.intensity_unit = intensity_unit
+
         if not isinstance(q, np.ndarray):
             raise TypeError("Input 'q' must be a NumPy ndarray.")
         if not isinstance(intensity, np.ndarray):
@@ -118,15 +122,17 @@ class ScatteringCurve1D:
         else:
             self.error: Optional[np.ndarray] = None
 
-        self.metadata: Dict[str, Any] = copy.deepcopy(metadata) if metadata else {}
-        self.q_unit: QUnit = q_unit
-        self.intensity_unit: IntensityUnit = intensity_unit
-
-        # Add a basic processing history entry
+        if metadata is not None:
+            self.metadata = copy.deepcopy(metadata)
+        else:
+            self.metadata = {}
         if "processing_history" not in self.metadata:
             self.metadata["processing_history"] = []
-        self.metadata["processing_history"].append("ScatteringCurve1D object created.")
-
+            self.metadata["processing_history"].append("ScatteringCurve1D object created.")
+        else:
+            # Only append if not already present as last entry
+            if not self.metadata["processing_history"] or self.metadata["processing_history"][-1] != "ScatteringCurve1D object created.":
+                self.metadata["processing_history"].append("ScatteringCurve1D object created.")
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the object."""
@@ -175,34 +181,30 @@ class ScatteringCurve1D:
         ScatteringCurve1D
             A new ScatteringCurve1D object with the selected data points.
         """
-        if isinstance(key, int): # Convert single int to a slice to maintain 1D array
-            if key < -len(self.q) or key >= len(self.q):
-                raise IndexError("Index out of bounds.")
-            key_slice = slice(key, key + 1)
+        # Handle single integer index to always return a 1D array with one element
+        if isinstance(key, (int, np.integer)):
+            # Handle negative indices
+            idx = key if key >= 0 else len(self.q) + key
+            if idx < 0 or idx >= len(self.q):
+                raise IndexError("Index out of range")
+            q = self.q[np.newaxis, idx]
+            intensity = self.intensity[np.newaxis, idx]
+            error = self.error[np.newaxis, idx] if self.error is not None else None
         else:
-            key_slice = key
-
-        new_q = self.q[key_slice]
-        new_intensity = self.intensity[key_slice]
-        new_error = self.error[key_slice] if self.error is not None else None
-
-        # Ensure arrays remain 1D even if key_slice was an int (now handled by slice conversion)
-        # or if key_slice resulted in a 0-D array (e.g. boolean array with one True)
-        if new_q.ndim == 0:
-            new_q = np.array([new_q.item()])
-            new_intensity = np.array([new_intensity.item()])
-            if new_error is not None:
-                new_error = np.array([new_error.item()])
-
+            q = self.q[key]
+            intensity = self.intensity[key]
+            error = self.error[key] if self.error is not None else None
+            # Check for out-of-bounds for slices and masks
+            if q.size == 0:
+                raise IndexError("Index out of range or resulted in empty selection")
         new_metadata = copy.deepcopy(self.metadata)
-        new_metadata.setdefault("processing_history", []).append(
-            f"Sliced/indexed from original (key: {key_slice})."
+        new_metadata["processing_history"].append(
+            f"Sliced/indexed from original (key: {key})."
         )
-
         return ScatteringCurve1D(
-            q=new_q,
-            intensity=new_intensity,
-            error=new_error,
+            q=q,
+            intensity=intensity,
+            error=error,
             metadata=new_metadata,
             q_unit=self.q_unit,
             intensity_unit=self.intensity_unit,

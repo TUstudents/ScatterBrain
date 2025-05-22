@@ -93,7 +93,6 @@ class TestScatteringCurve1DInitialization:
         """Test initialization with no metadata provided."""
         curve = ScatteringCurve1D(q=valid_q_data, intensity=valid_i_data)
         assert isinstance(curve.metadata, dict)
-        assert not curve.metadata # Should be empty except for processing history
         assert "processing_history" in curve.metadata
         assert "ScatteringCurve1D object created." in curve.metadata["processing_history"]
 

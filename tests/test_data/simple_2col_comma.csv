@@ -1,0 +1,5 @@
+Q_values,Intensity_values
+# This is a comment line in the data section
+0.05,1000.0
+0.15,200.0
+0.25,50.0
