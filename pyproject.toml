@@ -1,26 +1,110 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "scatterbrain"
-version = "0.1.0"
-description = "ScatterBrain Python Library"
+version = "0.0.1" # Initial development version
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+  { name="Johannes Poms", email="Johannes.Poms@tugraz.at" },
 ]
-dependencies = []
-requires-python = ">=3.9"
+description = "A Python library for SAXS/WAXS data analysis and modeling."
 readme = "README.md"
-license = {file = "LICENSE"}
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.pytest.ini_options]
-addopts = "-ra -q"
-testpaths = [
-    "tests",
+requires-python = ">=3.10" 
+license = { file = "LICENSE" }
+keywords = ["saxs", "waxs", "scattering", "x-ray", "materials science", "nanoscience", "biophysics"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha", # Initial development
+    "Intended Audience :: Science/Research",
+    "License :: CC-BY-NC-SA-4.0", # Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    # "Programming Language :: Python :: 3.13", # Add when stable
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Typing :: Typed",
 ]
 
-[tool.ruff]
-select = ["E", "F", "I", "N", "W"]
-ignore = []
+dependencies = [
+    "numpy>=1.21", # Adjusted based on common compatibility with Python 3.10+
+    "scipy>=1.8",  # Adjusted based on common compatibility with Python 3.10+
+    "matplotlib>=3.5", # Adjusted based on common compatibility with Python 3.10+
+    "pandas>=1.4", # Adjusted based on common compatibility with Python 3.10+
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0", # More recent pytest
+    "pytest-cov>=3.0",
+    "black>=23.0", # More recent black
+    "flake8>=5.0", # More recent flake8
+    "flake8-bugbear",
+    "flake8-comprehensions",
+    "flake8-print",
+    "isort>=5.10",
+    "mypy>=1.0", # More recent mypy
+    "twine>=4.0",
+    "build>=0.10",
+]
+docs = [
+    "sphinx>=5.0",
+    "sphinx-rtd-theme>=1.1",
+    "myst-parser>=0.18",
+    "sphinx-autodoc-typehints>=1.19",
+    "tomli>=1.0; python_version < '3.11'", # << ADD THIS LINE
+]
+# advanced_io = [
+#     "fabio>=0.14",
+#     "h5py>=3.7",
+# ]
+# advanced_reduction = [
+#     "pyFAI>=2023.9", # Example of a more recent version
+#     "scikit-image>=0.19",
+# ]
+# advanced_modeling = [
+#     "lmfit>=1.1",
+# ]
+
+[project.urls]
+Homepage = "https://github.com/[your_username]/ScatterBrain" # Replace with actual URL
+Repository = "https://github.com/[your_username]/ScatterBrain"
+# Bug Tracker = "https://github.com/[your_username]/ScatterBrain/issues"
+# Documentation = "https://[your_username].github.io/ScatterBrain/" # Or ReadTheDocs URL
+
+[tool.setuptools]
+packages = ["scatterbrain"]
+
+[tool.setuptools.package-data]
+scatterbrain = ["data/*"]
+
+# --- Code Quality Tools Configuration ---
+[tool.black]
 line-length = 88
+target-version = ['py310', 'py311', 'py312'] 
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.10" # << UPDATED mypy Python version
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true # Initially, for smoother setup with dependencies
+# Consider enabling stricter checks later:
+# disallow_untyped_defs = true
+# disallow_incomplete_defs = true
+# check_untyped_defs = true
+
+# Flake8 is still typically configured in .flake8 or setup.cfg.
+# Consider using Ruff as a linter/formatter in the future, as it reads pyproject.toml.
