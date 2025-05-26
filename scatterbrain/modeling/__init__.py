@@ -13,13 +13,12 @@ structure_factors
     (Future) Defines various structure factors S(q).
 """
 
-# You can choose to expose specific model classes or functions here if desired.
-# For example:
-# from .form_factors import SphereModel, CylinderModel # If these are classes
-# from .some_fitting_utility import fit_model_to_curve
+from .form_factors import sphere_pq
+# from .fitting import fit_model # To be added later
 
-# __all__ = [
-#     "form_factors",
-#     "structure_factors",
-#     # "SphereModel", # etc.
-# ]
+__all__ = [
+    "form_factors", # Expose the module itself
+    "sphere_pq",    # Expose specific functions/classes
+    # "structure_factors", # Future
+    # "fit_model", # Future
+]
