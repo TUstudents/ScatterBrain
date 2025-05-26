@@ -14,11 +14,12 @@ structure_factors
 """
 
 from .form_factors import sphere_pq
-# from .fitting import fit_model # To be added later
+from .fitting import fit_model 
 
 __all__ = [
     "form_factors", # Expose the module itself
+    "fitting",      # Expose the fitting module
     "sphere_pq",    # Expose specific functions/classes
+    "fit_model",    # Expose the fitting utility
     # "structure_factors", # Future
-    # "fit_model", # Future
 ]
