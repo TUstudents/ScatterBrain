@@ -4,9 +4,11 @@ Unit tests for the scatterbrain.core module, particularly the ScatteringCurve1D 
 """
 
 import pytest
+import re
 import numpy as np
 import copy
 from scatterbrain.core import ScatteringCurve1D, QUnit, IntensityUnit
+from scatterbrain.utils import Q_ANGSTROM_INV, Q_NANOMETER_INV # For explicit unit consts
 
 # --- Fixtures ---
 
@@ -315,7 +317,79 @@ class TestScatteringCurve1DMethods:
         assert default_curve.metadata["sample_name"] == "CHANGED_SAMPLE_NAME"
         assert "Metadata updated." in default_curve.metadata["processing_history"]
 
-    def test_convert_q_unit_placeholder(self, default_curve: ScatteringCurve1D):
-        """Test that the q-unit conversion method is a placeholder."""
-        with pytest.raises(NotImplementedError):
-            default_curve.convert_q_unit("A^-1")
+    def test_convert_q_unit_placeholder(self, default_curve: ScatteringCurve1D): # Keep original placeholder test if needed during transition
+        # This test was for the NotImplementedError version. It should now fail if convert_q_unit is implemented.
+        # We can remove or adapt it. Let's adapt it to a real conversion.
+        # For now, I'll comment it out as the new tests below cover the implemented version.
+        # with pytest.raises(NotImplementedError):
+        #     default_curve.convert_q_unit("A^-1")
+        pass # Placeholder test is no longer relevant
+
+    # --- New tests for implemented convert_q_unit ---
+    def test_convert_q_unit_inplace_nm_to_a(self, default_curve: ScatteringCurve1D):
+        """Test inplace conversion from nm^-1 to A^-1."""
+        original_q = np.copy(default_curve.q)
+        original_q_unit = default_curve.q_unit
+        assert original_q_unit == Q_NANOMETER_INV # Assuming default_curve is nm^-1 from fixture
+
+        return_value = default_curve.convert_q_unit(Q_ANGSTROM_INV, inplace=True)
+
+        assert return_value is None # Inplace should return None
+        assert default_curve.q_unit == Q_ANGSTROM_INV
+        assert np.allclose(default_curve.q, original_q * 10.0) # 1 nm^-1 = 10 A^-1
+        assert "q units converted in-place" in default_curve.metadata["processing_history"][-1]
+
+    def test_convert_q_unit_new_object_a_to_nm(self, default_curve: ScatteringCurve1D):
+        """Test conversion (new object) from A^-1 to nm^-1."""
+        # First, convert default_curve (which is nm^-1) to A^-1 to set up the test
+        curve_a_inv = default_curve.convert_q_unit(Q_ANGSTROM_INV, inplace=False)
+        assert curve_a_inv is not None
+        assert curve_a_inv.q_unit == Q_ANGSTROM_INV
+        original_q_in_a = np.copy(curve_a_inv.q)
+        
+        # Ensure the processing history was updated for first conversion
+        assert any("q units converted" in msg for msg in curve_a_inv.metadata["processing_history"])
+
+        new_curve_nm_inv = curve_a_inv.convert_q_unit(Q_NANOMETER_INV, inplace=False)
+
+        assert new_curve_nm_inv is not None
+        assert new_curve_nm_inv is not curve_a_inv # Should be a new object
+        assert new_curve_nm_inv.q_unit == Q_NANOMETER_INV
+        assert np.allclose(new_curve_nm_inv.q, original_q_in_a * 0.1) # 1 A^-1 = 0.1 nm^-1
+        assert np.array_equal(new_curve_nm_inv.intensity, curve_a_inv.intensity) # Intensity unchanged
+        
+        # Check if processing history contains conversion message
+        assert any("q units converted" in msg 
+                  for msg in new_curve_nm_inv.metadata["processing_history"])
+
+        # Ensure original curve_a_inv is unchanged
+        assert curve_a_inv.q_unit == Q_ANGSTROM_INV
+        assert np.array_equal(curve_a_inv.q, original_q_in_a)
+
+
+    def test_convert_q_unit_no_change_needed(self, default_curve: ScatteringCurve1D):
+        """Test conversion when target unit is same as current unit."""
+        original_q = np.copy(default_curve.q)
+        original_meta_history_len = len(default_curve.metadata.get("processing_history", []))
+
+        # Inplace, no change
+        ret_inplace = default_curve.convert_q_unit(default_curve.q_unit, inplace=True)
+        assert ret_inplace is None
+        assert np.array_equal(default_curve.q, original_q)
+        assert len(default_curve.metadata.get("processing_history", [])) == original_meta_history_len # No new history
+
+        # New object, no change (but should be a copy)
+        new_curve = default_curve.convert_q_unit(default_curve.q_unit, inplace=False)
+        assert new_curve is not None
+        assert new_curve is not default_curve
+        assert np.array_equal(new_curve.q, original_q)
+        assert new_curve.q_unit == default_curve.q_unit
+        assert "Object deep copied" in new_curve.metadata.get("processing_history", [])[-1] # From copy() method
+
+    def test_convert_q_unit_unsupported_unit(self, default_curve: ScatteringCurve1D):
+        """Test conversion with an unsupported target unit."""
+        with pytest.raises(ValueError, match=re.escape("Failed to convert q units: Unsupported target_unit 'm^-1'")):
+            default_curve.convert_q_unit("m^-1", inplace=False)
+
+        # Ensure original curve is unchanged after failed conversion attempt
+        assert default_curve.q_unit == Q_NANOMETER_INV # Assuming default_curve is nm^-1

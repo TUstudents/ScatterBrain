@@ -155,27 +155,21 @@ def plot_iq(
         if label:
             has_any_label = True
 
+        # Ensure plot_kwargs doesn't contain label if we're using the label parameter
+        plot_args = dict(plot_kwargs)
+        if label and 'label' in plot_args:
+            del plot_args['label']
+
         if errorbars and curve_obj.error is not None and len(curve_obj.error) == len(curve_obj.q):
-            # Plot main line separately then error bars, or combine
-            # For log scale, error bars on log(y) are asymmetric if y +/- dy
-            # Matplotlib handles errorbars correctly on log scales if yerr is symmetric for y.
-            # If y is plotted on log scale, yerr should be dy (absolute error on y).
-            # matplotlib.pyplot.errorbar will plot y-dy and y+dy.
-            # If i_scale is log, ensure errors don't make intensity non-positive for plotting.
-            # This is complex if errors are large. For now, assume errors are reasonable.
             current_ax.errorbar(
                 curve_obj.q, curve_obj.intensity, yerr=curve_obj.error,
-                label=label if 'fmt' in _errorbar_kwargs else None, # Label on errorbar if it's the primary plot element
+                label=label if _errorbar_kwargs.get('fmt', '.') != '' else None,
                 **_errorbar_kwargs
             )
-            # If fmt was '.', plot line on top without markers for smoother appearance
-            if _errorbar_kwargs.get('fmt', '').strip() and _errorbar_kwargs['fmt'] != '':
-                 current_ax.plot(curve_obj.q, curve_obj.intensity, label=label, **plot_kwargs)
-            elif label: # If errorbar didn't take the label
-                 current_ax.plot(curve_obj.q, curve_obj.intensity, label=label, **plot_kwargs)
-
+            if _errorbar_kwargs.get('fmt', '.') != '':
+                current_ax.plot(curve_obj.q, curve_obj.intensity, **plot_args)
         else:
-            current_ax.plot(curve_obj.q, curve_obj.intensity, label=label, **plot_kwargs)
+            current_ax.plot(curve_obj.q, curve_obj.intensity, label=label, **plot_args)
 
     current_ax.set_xscale(q_scale)
     current_ax.set_yscale(i_scale)

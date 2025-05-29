@@ -6,6 +6,7 @@ Core data structures for the ScatterBrain library.
 from typing import Optional, Dict, Any, Union, Tuple
 import numpy as np
 import copy
+from .utils import convert_q_array # Import the utility function
 
 # Define common unit types for type hinting clarity, though these are just strings
 QUnit = str  # e.g., "nm^-1", "A^-1"
@@ -356,35 +357,63 @@ class ScatteringCurve1D:
                     self.metadata[key] = value
         self.metadata.setdefault("processing_history", []).append("Metadata updated.")
 
-    # Placeholder for q-unit conversion - actual implementation in utils or processing
-    def convert_q_unit(self, new_unit: QUnit):
+    def convert_q_unit(self, new_unit: QUnit, inplace: bool = False) -> Optional['ScatteringCurve1D']:
         """
-        Converts the q-values and q_unit to a new unit.
-        (This is a placeholder; actual conversion logic will be in utils/processing
-         and called from here or directly by processing functions.)
+        Converts the q-values and q_unit of the curve to a new unit.
 
         Parameters
         ----------
         new_unit : QUnit
-            The target unit for q (e.g., "A^-1").
+            The target unit for q (e.g., "A^-1", "nm^-1").
+        inplace : bool, optional
+            If True, modifies the curve object directly.
+            If False (default), returns a new ScatteringCurve1D object
+            with the converted units, leaving the original unchanged.
+
+        Returns
+        -------
+        Optional[ScatteringCurve1D]
+            A new ScatteringCurve1D object with converted q-units if `inplace`
+            is False. Returns None if `inplace` is True.
 
         Raises
         ------
-        NotImplementedError
-            This method is a placeholder.
+        ValueError
+            If the new_unit or current_unit is not supported by the
+            conversion utility.
         """
-        # Example of how it might work with an external function:
-        # from .utils import convert_q_array # Or wherever this function lives
-        # if new_unit != self.q_unit:
-        #     self.q = convert_q_array(self.q, current_unit=self.q_unit, target_unit=new_unit)
-        #     self.q_unit = new_unit
-        #     self.metadata.setdefault("processing_history", []).append(
-        #         f"q units converted from {self.q_unit_old} to {new_unit}."
-        #     )
-        raise NotImplementedError(
-            "q-unit conversion logic to be implemented, likely in scatterbrain.utils "
-            "or scatterbrain.processing."
-        )
+        if self.q_unit == new_unit:
+            if not inplace:
+                return self.copy() # Return a copy if no conversion needed and not inplace
+            return None # No change needed for inplace
+
+        original_q_unit = self.q_unit
+        try:
+            converted_q_values = convert_q_array(self.q, self.q_unit, new_unit)
+        except ValueError as e:
+            raise ValueError(f"Failed to convert q units: {e}") from e
+
+        if inplace:
+            self.q = converted_q_values
+            self.q_unit = new_unit
+            self.metadata.setdefault("processing_history", []).append(
+                f"q units converted in-place from '{original_q_unit}' to '{new_unit}'."
+            )
+            return None
+        else:
+            new_metadata = copy.deepcopy(self.metadata)
+            new_metadata.setdefault("processing_history", []).append(
+                f"q units converted from '{original_q_unit}' to '{new_unit}' (new object)."
+            )
+            return ScatteringCurve1D(
+                q=converted_q_values,
+                intensity=np.copy(self.intensity), # Copy intensity
+                error=np.copy(self.error) if self.error is not None else None, # Copy error
+                metadata=new_metadata,
+                q_unit=new_unit,
+                intensity_unit=self.intensity_unit # Intensity unit remains the same
+            )
+
 
 # Example Usage (for testing during development, would be removed or moved to examples/tests)
 if __name__ == "__main__": # pragma: no cover
