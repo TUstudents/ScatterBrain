@@ -7,7 +7,7 @@ This example demonstrates the basic functionality of the library.
 # Conceptual example - API is under development
 import scatterbrain as sb
 import scatterbrain.analysis as sba
-import scatterbrain.visualization as sbv
+import scatterbrain.visualization_renamed as sbv
 
 # Load data
 try:
