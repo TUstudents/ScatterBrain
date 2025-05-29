@@ -240,7 +240,7 @@ class TestGuinierFit:
         # Create base intensity that decreases with q
         intensity = 1000 * np.exp(-(q**2 * 5**2) / 3.0)
         # Create strong upturn at low-q
-        intensity[:5] = intensity[0] * np.exp(np.linspace(1.0, 0, 5))  # Exponential upturn
+        intensity[:5] = intensity[0] * np.exp(np.linspace(0.0, 1.0, 5))  # Exponential upturn
         curve_mod = ScatteringCurve1D(q, intensity)
 
         with warnings.catch_warnings(record=True) as w:

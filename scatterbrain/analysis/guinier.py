@@ -146,21 +146,18 @@ def guinier_fit(
             return None
 
         try:
-            # Use result object for newer scipy
             regression_initial = linregress(q_sq_initial, ln_i_initial)
             slope_initial = regression_initial.slope
-        except ValueError: # pragma: no cover
-             warnings.warn("Guinier fit (auto-range): ValueError during initial linear regression.", UserWarning)
-             return None
+            print(f"Initial slope: {slope_initial:.3g} (expected negative for Guinier fit).")
+        except ValueError:
+            warnings.warn("Guinier fit (auto-range): ValueError during initial linear regression.", UserWarning)
+            return None
 
+        # Issue warning for positive slope before any fallback logic
         if slope_initial >= 0:
-            warnings.warn(
-                "Guinier fit (auto-range): Initial fit yielded non-negative slope. "
-                "Using fallback q-range selection.",
-                UserWarning
-            )
+            warnings.warn("Guinier fit (auto-range): Initial fit yielded non-negative slope . ", UserWarning)
+            # Fallback logic after warning
             q_fit_min_val = q_data.min()
-            # Use a smaller fraction for fallback
             q_fit_max_val = q_data[max(min_points-1, int(len(q_data) * 0.15))]
             criteria_str = "Fallback q-range due to initial positive slope. "
             fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
