@@ -174,61 +174,93 @@ The development of `ScatterBrain` will adhere to the following principles, as ou
 *   **Phase 1 Implementation:** Basic static plots for $I(q)$, Guinier, and Porod representations, using `matplotlib`.
 
 ### 5.7. `scatterbrain.utils`
-*   **Purpose:** Utility functions and common constants.
-*   **Functionality:** Unit conversions ($q$, wavelength), physical constants, logging setup, custom error classes.
-*   **Key Classes/Functions (Initial):**
-    *   `convert_q(q_values, current_unit, target_unit)`
-    *   `ScatterBrainError(Exception)` base class.
+*   **Purpose:** Utility functions, common constants, custom exception hierarchy, and logging initialisation.
+*   **Functionality:** q-unit conversion (nm⁻¹ ↔ Å⁻¹, with tolerant string parsing), custom exception hierarchy, `NullHandler` registration on the root `scatterbrain` logger at import time.
+*   **Key Classes/Functions:**
+    *   `convert_q_array(q_values, current_unit, target_unit)` — converts a NumPy array of q-values between supported units (`"nm^-1"`, `"A^-1"`, and common string variants).
+    *   `normalize_unit_string(unit)` — internal helper that normalises unit strings for tolerant comparison.
+    *   `ScatterBrainError(Exception)` — base class for all library exceptions.
+    *   `ProcessingError(ScatterBrainError)` — raised by functions in `scatterbrain.processing`.
+    *   `AnalysisError(ScatterBrainError)` — raised by functions in `scatterbrain.analysis`.
+    *   `FittingError(ScatterBrainError)` — raised by functions in `scatterbrain.modeling`.
+*   **Logging initialisation:** Registers a `NullHandler` on the `"scatterbrain"` logger at import time so the library is silent by default in application code.
 *   **Dependencies:** `numpy`.
-*   **Phase 1 Implementation:** Basic q-unit conversion (nm⁻¹ $\leftrightarrow$ Å⁻¹).
+
+### 5.8. `scatterbrain` (package `__init__.py`)
+*   **Purpose:** Package entry point; exposes the public version string and the opt-in logging helper.
+*   **Key API:**
+    *   `__version__` — populated from package metadata via `importlib.metadata`.
+    *   `configure_logging(level=logging.DEBUG, handler=None)` — attaches a handler to the root `"scatterbrain"` logger and sets its level, enabling log output for users who want it. If no handler is supplied, a `StreamHandler` with a timestamped formatter is created automatically. Intended to be called **once** at application startup.
+*   **All sub-module loggers** are created with `logging.getLogger(__name__)` and rely on propagation to the root logger — no handler is attached at the sub-module level.
 
 ## 6. Directory Structure
-(As per SOP_Python_libs.md, Section IV, and user's `ScatterBrain` proposal)
+
 ```
 ScatterBrain/
 ├── scatterbrain/               # Main library source code package
-│   ├── __init__.py
-│   ├── core.py                # Core data structures (e.g., ScatteringCurve1D)
-│   ├── io.py
-│   ├── reduction.py           # Placeholders initially
-│   ├── processing.py
-│   ├── analysis.py
-│   ├── modeling/
+│   ├── __init__.py             # Package init; exposes configure_logging()
+│   ├── core.py                 # ScatteringCurve1D data structure
+│   ├── io.py                   # load_ascii_1d, save_ascii_1d
+│   ├── utils.py                # convert_q_array, custom exceptions, logging
+│   ├── visualization.py        # plot_iq, plot_guinier, plot_porod, plot_fit
+│   ├── analysis/               # Analysis sub-package
 │   │   ├── __init__.py
-│   │   ├── form_factors.py
-│   │   └── structure_factors.py # Placeholders initially
-│   ├── visualization.py
-│   ├── utils.py
-│   └── data/                  # Default data files (e.g., example .dat for tests)
+│   │   ├── guinier.py          # guinier_fit
+│   │   └── porod.py            # porod_analysis
+│   ├── modeling/               # Modeling sub-package
+│   │   ├── __init__.py
+│   │   ├── form_factors.py     # sphere_pq and future form factors
+│   │   └── fitting.py          # fit_model generic fitting utility
+│   ├── processing/             # Processing sub-package
+│   │   ├── __init__.py
+│   │   └── background.py       # subtract_background
+│   ├── reduction/              # 2D→1D reduction (placeholder for future)
+│   │   └── __init__.py
+│   ├── data/                   # Data sub-package placeholder
+│   │   └── __init__.py
+│   └── examples/               # Bundled example scripts and data
+│       ├── basic_workflow_example.py
+│       └── data/
+│           └── example_sphere_data.dat
 │
-├── docs/                      # Sphinx documentation
-│   ├── source/
-│   │   ├── conf.py
-│   │   └── index.rst
-│   └── Makefile
+├── docs/                       # Sphinx documentation
+│   └── source/
+│       ├── conf.py
+│       └── index.rst
 │
-├── examples/                  # Example Python scripts using the library
+├── examples/                   # Example Python scripts for end users
+│   └── basic_usage.py
 │
-├── notebooks/                 # Jupyter notebook tutorials/case studies
+├── notebooks/                  # Jupyter notebook tutorials/case studies
+│   └── 01_basic_workflow.ipynb
 │
-├── tests/                     # Pytest unit and integration tests
+├── tests/                      # Pytest unit and integration tests
 │   ├── fixtures/
-│   └── test_core.py
-│   └── test_io.py
-│   └── ...
+│   ├── test_data/              # Sample .dat/.csv files used by tests
+│   ├── conftest.py
+│   ├── test_core.py
+│   ├── test_io.py
+│   ├── test_analysis.py
+│   ├── test_modeling.py
+│   ├── test_processing.py
+│   ├── test_visualization.py
+│   ├── test_utils.py
+│   └── test_logging.py
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions CI
+├── .flake8                     # Flake8 linting configuration
 ├── .gitignore
-├── LICENSE                    # (e.g., MIT, BSD-3-Clause)
-├── MANIFEST.in                # If needed for sdist
-├── pyproject.toml             # PEP 517/518/621
+├── LICENSE                     # CC-BY-NC-SA-4.0
+├── pyproject.toml              # PEP 517/518/621; build backend: uv_build
 ├── README.md
-└── requirements-dev.txt       # (or manage via pyproject.toml optional groups)
+└── uv.lock                     # Locked dependency manifest (managed by uv)
 ```
-*(Note: Moved core data structures to `scatterbrain/core.py` for better separation from I/O operations).*
 
 ## 7. Technology Stack & Tooling
 
-*   **Programming Language:** Python (>=3.8 recommended)
+*   **Programming Language:** Python (>=3.10)
 *   **Core Libraries:**
     *   `numpy`: Fundamental for numerical operations and array handling.
     *   `scipy`: For scientific computing (optimization, special functions, signal processing, statistics).
@@ -242,7 +274,8 @@ ScatterBrain/
 *   **Testing Framework:** `pytest`.
 *   **Documentation Generator:** `Sphinx` with `sphinx_rtd_theme` (or `furo`), `sphinx.ext.autodoc`, `sphinx.ext.napoleon`, `myst_parser`.
 *   **Version Control:** Git, hosted on GitHub (or similar).
-*   **Packaging:** `pyproject.toml` (using `setuptools` or `flit`/`poetry` as build backend). `twine` for distribution.
+*   **Package Manager:** [`uv`](https://docs.astral.sh/uv/) — used for virtual environment creation, dependency installation (`uv sync --all-extras`), and running commands in the managed environment (`uv run pytest`, `uv run black`, etc.). The locked manifest is `uv.lock`.
+*   **Build Backend:** `uv_build` (declared in `pyproject.toml` `[build-system]`). Produces standard wheel and sdist artefacts compatible with PyPI. `twine` (available as a dev dependency) is used for publishing.
 *   **Code Quality:**
     *   `black` for code formatting.
     *   `flake8` for linting (with plugins like `flake8-bugbear`, `flake8-comprehensions`).
@@ -302,7 +335,10 @@ This plan follows the SOP, Section II.
     *   Consistent return types for similar operations (e.g., analysis functions returning a dictionary or a dedicated `Result` dataclass/object).
     *   Standardized parameter names (e.g., `q_range=(q_min, q_max)`).
 *   **Extensibility:** Design interfaces (e.g., for models or analysis routines) that allow users to easily add their own custom components.
-*   **Error Handling:** Clear and informative error messages, using custom exceptions derived from `ScatterBrainError`.
+*   **Error Handling:** Clear and informative error messages, using custom exceptions derived from `ScatterBrainError`. Two distinct failure modes are used:
+    *   **Hard failures** (wrong input type, parameter mismatch): raise a typed exception (`AnalysisError`, `FittingError`, `ProcessingError`) immediately.
+    *   **Soft failures** (insufficient data points, no positive intensity in range): emit a `logger.warning()` message and return `None`, allowing callers to handle the condition gracefully without a try/except.
+*   **Logging:** The library is **silent by default** — a `NullHandler` is attached to the root `"scatterbrain"` logger at import time. Users opt in to log output by calling `scatterbrain.configure_logging()` once. Log levels follow the convention: `DEBUG` for diagnostic internals (e.g., intermediate fit slopes), `WARNING` for soft failures, `ERROR`/`CRITICAL` reserved for unexpected states.
 *   **Progressive Disclosure:** Simple interfaces for common tasks, with options for more advanced control.
 
 ## 10. Testing Strategy
