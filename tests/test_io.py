@@ -9,7 +9,7 @@ import pathlib
 import warnings
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.io import load_ascii_1d
+from scatterbrain.io import load_ascii_1d, save_ascii_1d
 
 # Helper to create temporary data files within the tests/test_data directory
 # This ensures tests don't rely on files outside the test suite control after initial setup.
@@ -209,3 +209,83 @@ class TestLoadAscii1D:
         assert len(curve) == 5
         assert curve.q.dtype == np.float64 # Should still be float after our pd.to_numeric
         assert np.allclose(curve.q, [0.1, 0.2, 0.3, 0.4, 0.5])
+
+
+# ---------------------------------------------------------------------------
+# Tests for save_ascii_1d
+# ---------------------------------------------------------------------------
+
+class TestSaveAscii1D:
+    """Tests for save_ascii_1d."""
+
+    @pytest.fixture
+    def sample_curve(self):
+        q = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        intensity = np.array([100.0, 80.0, 50.0, 30.0, 10.0])
+        error = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
+        return ScatteringCurve1D(
+            q, intensity, error,
+            metadata={"filename": "test.dat"},
+            q_unit="nm^-1", intensity_unit="a.u.",
+        )
+
+    @pytest.fixture
+    def sample_curve_no_error(self):
+        q = np.array([0.1, 0.2, 0.3])
+        intensity = np.array([100.0, 80.0, 50.0])
+        return ScatteringCurve1D(q, intensity, q_unit="nm^-1", intensity_unit="a.u.")
+
+    def test_round_trip_with_error(self, sample_curve, tmp_path):
+        out = tmp_path / "out.dat"
+        save_ascii_1d(sample_curve, out, include_error=True)
+        # use_names forces header=None so pandas doesn't mistake the first data row for headers
+        reloaded = load_ascii_1d(
+            out, err_col=2, delimiter=r'\s+',
+            use_names=["q", "intensity", "error"],
+        )
+        np.testing.assert_allclose(reloaded.q, sample_curve.q, rtol=1e-5)
+        np.testing.assert_allclose(reloaded.intensity, sample_curve.intensity, rtol=1e-5)
+        np.testing.assert_allclose(reloaded.error, sample_curve.error, rtol=1e-5)
+
+    def test_round_trip_without_error(self, sample_curve, tmp_path):
+        out = tmp_path / "out_no_err.dat"
+        save_ascii_1d(sample_curve, out, include_error=False)
+        reloaded = load_ascii_1d(
+            out, delimiter=r'\s+',
+            use_names=["q", "intensity"],
+        )
+        np.testing.assert_allclose(reloaded.q, sample_curve.q, rtol=1e-5)
+        np.testing.assert_allclose(reloaded.intensity, sample_curve.intensity, rtol=1e-5)
+        assert reloaded.error is None
+
+    def test_no_error_column_when_curve_has_none(self, sample_curve_no_error, tmp_path):
+        out = tmp_path / "no_err.dat"
+        save_ascii_1d(sample_curve_no_error, out, include_error=True)
+        # File should have only 2 data columns
+        content = out.read_text()
+        data_lines = [ln for ln in content.splitlines() if ln and not ln.startswith("#")]
+        assert len(data_lines[0].split()) == 2
+
+    def test_header_written(self, sample_curve, tmp_path):
+        out = tmp_path / "header.dat"
+        save_ascii_1d(sample_curve, out, header="Custom header line")
+        content = out.read_text()
+        assert "# Saved by ScatterBrain" in content
+        assert "Custom header line" in content
+
+    def test_custom_delimiter(self, sample_curve, tmp_path):
+        out = tmp_path / "comma.dat"
+        save_ascii_1d(sample_curve, out, delimiter=",", include_error=False)
+        content = out.read_text()
+        data_lines = [ln for ln in content.splitlines() if ln and not ln.startswith("#")]
+        assert "," in data_lines[0]
+
+    def test_missing_parent_raises(self, sample_curve, tmp_path):
+        out = tmp_path / "nonexistent_dir" / "out.dat"
+        with pytest.raises(ValueError, match="Parent directory"):
+            save_ascii_1d(sample_curve, out)
+
+    def test_wrong_type_raises(self, tmp_path):
+        out = tmp_path / "out.dat"
+        with pytest.raises(TypeError, match="ScatteringCurve1D"):
+            save_ascii_1d("not a curve", out)
