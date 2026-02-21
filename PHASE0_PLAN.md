@@ -1,7 +1,7 @@
 # ScatterBrain — Phase 0 Plan: Foundation & Planning
 
-**Version:** 1.0
-**Branch:** `claude/review-scatter-brain-docs-SwvfP`
+**Version:** 1.1
+**Branch:** `main`
 **Reference:** `Design_document.md` §8.1, `phase0.md`, SOP_Python_libs.md
 
 ---
@@ -127,27 +127,40 @@ scatterbrain.visualization
 ```
 ScatterBrain/
 ├── scatterbrain/
-│   ├── __init__.py
+│   ├── __init__.py          # exposes configure_logging()
 │   ├── core.py
 │   ├── io.py
-│   ├── reduction.py
-│   ├── processing/
+│   ├── utils.py
+│   ├── visualization.py
 │   ├── analysis/
+│   │   ├── __init__.py
 │   │   ├── guinier.py
 │   │   └── porod.py
 │   ├── modeling/
+│   │   ├── __init__.py
 │   │   ├── form_factors.py
-│   │   └── structure_factors.py
-│   ├── visualization.py
-│   ├── utils.py
-│   └── data/
+│   │   └── fitting.py
+│   ├── processing/
+│   │   ├── __init__.py
+│   │   └── background.py
+│   ├── reduction/           # placeholder
+│   │   └── __init__.py
+│   ├── data/
+│   │   └── __init__.py
+│   └── examples/
+│       └── data/
+│           └── example_sphere_data.dat
 ├── docs/source/
 ├── examples/
 ├── notebooks/
+│   └── 01_basic_workflow.ipynb
 ├── tests/
-├── pyproject.toml
+├── .github/workflows/ci.yml
+├── .flake8
+├── pyproject.toml           # build backend: uv_build
 ├── README.md
-├── LICENSE
+├── LICENSE                  # CC-BY-NC-SA-4.0
+├── uv.lock
 └── .gitignore
 ```
 
@@ -161,7 +174,7 @@ ScatterBrain/
 
 | Concern | Decision | Rationale |
 |---------|----------|-----------|
-| Language | Python ≥ 3.8 | Target audience norm |
+| Language | Python ≥ 3.10 | Target audience norm; 3.8 EOL Oct 2024 |
 | Numerical | `numpy` | Standard for scientific Python |
 | Scientific | `scipy` | Optimization, special functions, stats |
 | Plotting | `matplotlib` (initial) | Ubiquitous, publication-quality |
@@ -172,8 +185,9 @@ ScatterBrain/
 | Formatting | `black` | Opinionated, zero-config |
 | Linting | `flake8` | Broad compatibility |
 | Type checking | `mypy` (optional) | Progressive adoption |
-| Packaging | `pyproject.toml` + `setuptools` | PEP 517/518/621 compliant |
-| CI | GitHub Actions | Free for open source |
+| Package manager | `uv` | Fast, lockfile-based (`uv sync --all-extras`) |
+| Build backend | `uv_build` | Declared in `pyproject.toml [build-system]` |
+| CI | GitHub Actions | Free for open source; `.github/workflows/ci.yml` |
 | Future 2D I/O | `fabio` | Standard detector image formats |
 | Future 2D reduction | `pyFAI` | High-performance azimuthal integration |
 
@@ -247,7 +261,7 @@ Per `Design_document.md` §8.2:
 6. Implement `sphere_pq` in `scatterbrain/modeling/form_factors.py`
 7. Implement `fit_model` in `scatterbrain/modeling/fitting.py`
 8. Implement visualization functions in `scatterbrain/visualization.py`
-9. Implement `convert_q` and `ScatterBrainError` in `scatterbrain/utils.py`
+9. Implement `convert_q_array`, `ScatterBrainError` hierarchy, and `NullHandler` logging init in `scatterbrain/utils.py`; expose `configure_logging()` from `scatterbrain/__init__.py`
 10. Write `pytest` unit tests for all of the above
 11. Write docstrings for all public API
 12. Create `examples/basic_workflow.py` and at least one tutorial notebook

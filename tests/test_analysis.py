@@ -375,10 +375,12 @@ class TestPorodAnalysis:
             results["porod_exponent"], 3.0, rtol=1e-2
         )  # Auto range might be less precise
         assert np.isclose(results["porod_constant_kp"], 0.5, rtol=1e-2)
-        assert results["porod_exponent_err"] > 0 and not np.isnan(
+        # On perfectly noiseless data linregress correctly returns stderr=0
+        # (SSR=0, no residuals), so assert >= 0 rather than > 0.
+        assert results["porod_exponent_err"] >= 0 and not np.isnan(
             results["porod_exponent_err"]
         )
-        assert results["porod_constant_kp_err"] > 0 and not np.isnan(
+        assert results["porod_constant_kp_err"] >= 0 and not np.isnan(
             results["porod_constant_kp_err"]
         )
         assert "Automatic q_range" in results["method"]
