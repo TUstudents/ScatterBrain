@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.8.0,<0.9.0"]
+build-backend = "uv_build"
 
 [project]
 name = "scatterbrain"
@@ -76,12 +76,8 @@ Repository = "https://github.com/[your_username]/ScatterBrain"
 # Bug Tracker = "https://github.com/[your_username]/ScatterBrain/issues"
 # Documentation = "https://[your_username].github.io/ScatterBrain/" # Or ReadTheDocs URL
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["scatterbrain*"]
-
-[tool.setuptools.package-data]
-"scatterbrain" = ["data/*", "examples/data/*"]
+[tool.uv.build-backend]
+module-root = ""
 
 # --- Code Quality Tools Configuration ---
 [tool.black]
@@ -109,3 +105,18 @@ ignore_missing_imports = true # Initially, for smoother setup with dependencies
 
 # Flake8 is still typically configured in .flake8 or setup.cfg.
 # Consider using Ruff as a linter/formatter in the future, as it reads pyproject.toml.
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+    "pytest-cov>=3.0",
+    "black>=23.0",
+    "flake8>=5.0",
+    "flake8-bugbear",
+    "flake8-comprehensions",
+    "flake8-print",
+    "isort>=5.10",
+    "mypy>=1.0",
+    "twine>=4.0",
+    "build>=0.10",
+]

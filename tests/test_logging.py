@@ -6,7 +6,12 @@ import numpy as np
 import pytest
 
 import scatterbrain
-from scatterbrain.utils import AnalysisError, FittingError, ProcessingError, ScatterBrainError
+from scatterbrain.utils import (
+    AnalysisError,
+    FittingError,
+    ProcessingError,
+    ScatterBrainError,
+)
 from scatterbrain.core import ScatteringCurve1D
 from scatterbrain.analysis.guinier import guinier_fit
 from scatterbrain.analysis.porod import porod_analysis
@@ -18,10 +23,11 @@ from scatterbrain.modeling.form_factors import sphere_pq
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_curve(n=50, q_min=0.01, q_max=0.5, rg=5.0, i0=1000.0, noise=0.0):
     """Create a synthetic Guinier-like scattering curve."""
     q = np.linspace(q_min, q_max, n)
-    intensity = i0 * np.exp(-(q ** 2 * rg ** 2) / 3.0)
+    intensity = i0 * np.exp(-(q**2 * rg**2) / 3.0)
     if noise:
         intensity += np.random.default_rng(0).normal(0, noise, n)
     error = np.sqrt(np.abs(intensity)) * 0.05
@@ -39,11 +45,14 @@ def _make_empty_curve():
 # Step 1: Logger hierarchy
 # ---------------------------------------------------------------------------
 
+
 class TestLoggerHierarchy:
     def test_root_logger_has_null_handler(self):
         """The 'scatterbrain' logger must have exactly one NullHandler by default."""
         sb_logger = logging.getLogger("scatterbrain")
-        null_handlers = [h for h in sb_logger.handlers if isinstance(h, logging.NullHandler)]
+        null_handlers = [
+            h for h in sb_logger.handlers if isinstance(h, logging.NullHandler)
+        ]
         assert len(null_handlers) >= 1, "scatterbrain logger should have a NullHandler"
 
     def test_submodule_loggers_propagate(self):
@@ -74,6 +83,7 @@ class TestLoggerHierarchy:
 # Step 1: configure_logging()
 # ---------------------------------------------------------------------------
 
+
 class TestConfigureLogging:
     def test_configure_logging_adds_handler(self):
         """configure_logging() should add a handler to the scatterbrain logger."""
@@ -100,6 +110,7 @@ class TestConfigureLogging:
 # ---------------------------------------------------------------------------
 # Step 4: warnings.warn → logger.warning
 # ---------------------------------------------------------------------------
+
 
 class TestGuinierLogging:
     def test_no_positive_intensity_emits_warning(self, caplog):
@@ -163,6 +174,7 @@ class TestFittingLogging:
 # ---------------------------------------------------------------------------
 # Step 5: Custom exceptions
 # ---------------------------------------------------------------------------
+
 
 class TestCustomExceptionHierarchy:
     def test_custom_exceptions_inherit_scatterbrainerror(self):

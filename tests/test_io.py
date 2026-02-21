@@ -3,10 +3,10 @@
 Unit tests for the scatterbrain.io module.
 """
 import logging
-import pytest
-import numpy as np
 import pathlib
-import warnings
+
+import numpy as np
+import pytest
 
 from scatterbrain.core import ScatteringCurve1D
 from scatterbrain.io import load_ascii_1d, save_ascii_1d
@@ -21,6 +21,7 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent / "test_data"
 
 # --- Test Cases ---
 
+
 class TestLoadAscii1D:
     """Tests for the load_ascii_1d function."""
 
@@ -32,8 +33,8 @@ class TestLoadAscii1D:
             q_col=0,
             i_col=1,
             err_col=2,
-            skip_header=2, # Skip the two '#' header lines
-            delimiter=r'\s+' # Match one or more whitespace characters
+            skip_header=2,  # Skip the two '#' header lines
+            delimiter=r"\s+",  # Match one or more whitespace characters
         )
         assert isinstance(curve, ScatteringCurve1D)
         assert len(curve) == 5
@@ -49,12 +50,12 @@ class TestLoadAscii1D:
         filepath = TEST_DATA_DIR / "simple_2col_comma.csv"
         curve = load_ascii_1d(
             filepath,
-            q_col="Q_values", # Use column name
+            q_col="Q_values",  # Use column name
             i_col="Intensity_values",
-            err_col=None,     # No error column
-            delimiter=',',
-            comments="#",     # '#' is a comment
-            skip_header=0     # Pandas infers header from first line
+            err_col=None,  # No error column
+            delimiter=",",
+            comments="#",  # '#' is a comment
+            skip_header=0,  # Pandas infers header from first line
         )
         assert isinstance(curve, ScatteringCurve1D)
         assert len(curve) == 3
@@ -65,19 +66,23 @@ class TestLoadAscii1D:
 
     def test_load_with_use_names(self):
         """Test loading when explicit column names are provided."""
-        filepath = TEST_DATA_DIR / "simple_3col.dat" # Re-use, but ignore its internal header
+        filepath = (
+            TEST_DATA_DIR / "simple_3col.dat"
+        )  # Re-use, but ignore its internal header
         curve = load_ascii_1d(
             filepath,
             q_col="my_q",
             i_col="my_I",
             err_col="my_err",
-            skip_header=2, # Still need to skip the file's own comment lines
-            delimiter=r'\s+',
-            use_names=["my_q", "my_I", "my_err", "extra_col_ignored"] # Provide names
+            skip_header=2,  # Still need to skip the file's own comment lines
+            delimiter=r"\s+",
+            use_names=["my_q", "my_I", "my_err", "extra_col_ignored"],  # Provide names
         )
         assert len(curve) == 5
         assert np.allclose(curve.q, [0.1, 0.2, 0.3, 0.4, 0.5])
-        assert "extra_col_ignored" not in curve.metadata.get("loaded_columns", []) # Check it wasn't used for data
+        assert "extra_col_ignored" not in curve.metadata.get(
+            "loaded_columns", []
+        )  # Check it wasn't used for data
 
     def test_custom_metadata_func(self):
         """Test using a custom function to extract metadata from headers."""
@@ -91,7 +96,7 @@ class TestLoadAscii1D:
                 if line.lower().startswith("wavelength_nm:"):
                     try:
                         meta["wavelength_nm"] = float(line.split(":", 1)[1].strip())
-                        meta["q_unit"] = "nm^-1" # Assume based on wavelength
+                        meta["q_unit"] = "nm^-1"  # Assume based on wavelength
                     except ValueError:
                         pass
             return meta
@@ -101,15 +106,17 @@ class TestLoadAscii1D:
             q_col=0,
             i_col=1,
             err_col=2,
-            skip_header=6, # Skip header + column names line
-            delimiter=r'[,;\s]+', # Match any combination of comma, semicolon, or whitespace
-            comments='#', # Handle '#' comments properly
-            metadata_func=extract_meta
+            skip_header=6,  # Skip header + column names line
+            delimiter=r"[,;\s]+",  # Match any combination of comma, semicolon, or whitespace
+            comments="#",  # Handle '#' comments properly
+            metadata_func=extract_meta,
         )
-        assert len(curve) == 5 # Data rows with mixed delimiters will be tricky for pandas here.
-                               # This test expects the primary space delimiter to work for the numeric part.
-                               # The trailing comments might be handled by pandas or might cause issues.
-                               # The test is designed to see if the first 3 numeric columns are parsed.
+        assert (
+            len(curve) == 5
+        )  # Data rows with mixed delimiters will be tricky for pandas here.
+        # This test expects the primary space delimiter to work for the numeric part.
+        # The trailing comments might be handled by pandas or might cause issues.
+        # The test is designed to see if the first 3 numeric columns are parsed.
         assert np.allclose(curve.q, [0.1, 0.2, 0.3, 0.4, 0.5])
         assert np.allclose(curve.intensity, [1.2e3, 9.5e2, 5.0e2, 2.1e2, 1.0e2])
         assert curve.error is not None
@@ -133,7 +140,7 @@ class TestLoadAscii1D:
         """Test loading a file that only contains header lines and no data rows."""
         filepath = TEST_DATA_DIR / "only_header.dat"
         with pytest.raises(ValueError, match="Pandas could not read the file"):
-            load_ascii_1d(filepath, skip_header=3) # Skip all lines
+            load_ascii_1d(filepath, skip_header=3)  # Skip all lines
 
     def test_malformed_data_coercion_and_warning(self, caplog):
         """Test behavior with non-numeric data in columns - should coerce and warn."""
@@ -141,9 +148,11 @@ class TestLoadAscii1D:
         with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             curve = load_ascii_1d(
                 filepath,
-                q_col=0, i_col=1, err_col=2,
-                skip_header=1, # Skip "q I err" header line
-                delimiter=r'\s+'
+                q_col=0,
+                i_col=1,
+                err_col=2,
+                skip_header=1,  # Skip "q I err" header line
+                delimiter=r"\s+",
             )
             # Expecting rows with "text_instead_of_number" or "not_a_number" to be dropped
             # or for those specific columns to be NaN and then rows dropped if q or I are NaN.
@@ -158,7 +167,7 @@ class TestLoadAscii1D:
             # if we handle err_series.dropna() separately or if err_col is None.
             # The current implementation drops rows if ANY of q, I, or err (if specified) are NaN after coercion.
 
-        assert len(caplog.records) > 0 # At least one warning should be issued
+        assert len(caplog.records) > 0  # At least one warning should be issued
         assert any("Non-numeric values found" in r.message for r in caplog.records)
         assert any("rows were dropped due to NaNs" in r.message for r in caplog.records)
 
@@ -174,26 +183,31 @@ class TestLoadAscii1D:
         assert curve.error is not None
         assert np.allclose(curve.error, [8.0, 3.0])
 
-
     def test_invalid_column_specifiers(self):
         """Test invalid types for column specifiers."""
         filepath = TEST_DATA_DIR / "simple_3col.dat"
-        with pytest.raises(TypeError, match="Argument 'q_col' must be an int, str, or None"):
-            load_ascii_1d(filepath, q_col=[0]) # Pass a list
-        with pytest.raises(TypeError, match="Argument 'err_col' must be an int, str, or None"):
-            load_ascii_1d(filepath, err_col={'col': 2}) # Pass a dict
+        with pytest.raises(
+            TypeError, match="Argument 'q_col' must be an int, str, or None"
+        ):
+            load_ascii_1d(filepath, q_col=[0])  # Pass a list
+        with pytest.raises(
+            TypeError, match="Argument 'err_col' must be an int, str, or None"
+        ):
+            load_ascii_1d(filepath, err_col={"col": 2})  # Pass a dict
 
     def test_q_col_not_found_by_name(self):
         filepath = TEST_DATA_DIR / "simple_2col_comma.csv"
         with pytest.raises(ValueError, match="q column 'NonExistentQ' not found"):
-            load_ascii_1d(filepath, q_col="NonExistentQ", i_col="Intensity_values", delimiter=',')
+            load_ascii_1d(
+                filepath, q_col="NonExistentQ", i_col="Intensity_values", delimiter=","
+            )
 
     def test_i_col_not_found_by_index(self):
         filepath = TEST_DATA_DIR / "simple_2col_comma.csv"
-        with pytest.raises(ValueError, match="intensity column index 10 is out of bounds"):
-            load_ascii_1d(filepath, q_col=0, i_col=10, delimiter=',') # Only 2 columns
-
-
+        with pytest.raises(
+            ValueError, match="intensity column index 10 is out of bounds"
+        ):
+            load_ascii_1d(filepath, q_col=0, i_col=10, delimiter=",")  # Only 2 columns
 
     def test_load_with_pandas_kwargs(self):
         """Test passing additional kwargs to pandas.read_csv, e.g., dtype."""
@@ -203,17 +217,20 @@ class TestLoadAscii1D:
         curve = load_ascii_1d(
             filepath,
             skip_header=2,
-            delimiter=r'\s+',
-            dtype={0: str} # Pass dtype for first column as string
+            delimiter=r"\s+",
+            dtype={0: str},  # Pass dtype for first column as string
         )
         assert len(curve) == 5
-        assert curve.q.dtype == np.float64 # Should still be float after our pd.to_numeric
+        assert (
+            curve.q.dtype == np.float64
+        )  # Should still be float after our pd.to_numeric
         assert np.allclose(curve.q, [0.1, 0.2, 0.3, 0.4, 0.5])
 
 
 # ---------------------------------------------------------------------------
 # Tests for save_ascii_1d
 # ---------------------------------------------------------------------------
+
 
 class TestSaveAscii1D:
     """Tests for save_ascii_1d."""
@@ -224,9 +241,12 @@ class TestSaveAscii1D:
         intensity = np.array([100.0, 80.0, 50.0, 30.0, 10.0])
         error = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
         return ScatteringCurve1D(
-            q, intensity, error,
+            q,
+            intensity,
+            error,
             metadata={"filename": "test.dat"},
-            q_unit="nm^-1", intensity_unit="a.u.",
+            q_unit="nm^-1",
+            intensity_unit="a.u.",
         )
 
     @pytest.fixture
@@ -240,22 +260,29 @@ class TestSaveAscii1D:
         save_ascii_1d(sample_curve, out, include_error=True)
         # use_names forces header=None so pandas doesn't mistake the first data row for headers
         reloaded = load_ascii_1d(
-            out, err_col=2, delimiter=r'\s+',
+            out,
+            err_col=2,
+            delimiter=r"\s+",
             use_names=["q", "intensity", "error"],
         )
         np.testing.assert_allclose(reloaded.q, sample_curve.q, rtol=1e-5)
-        np.testing.assert_allclose(reloaded.intensity, sample_curve.intensity, rtol=1e-5)
+        np.testing.assert_allclose(
+            reloaded.intensity, sample_curve.intensity, rtol=1e-5
+        )
         np.testing.assert_allclose(reloaded.error, sample_curve.error, rtol=1e-5)
 
     def test_round_trip_without_error(self, sample_curve, tmp_path):
         out = tmp_path / "out_no_err.dat"
         save_ascii_1d(sample_curve, out, include_error=False)
         reloaded = load_ascii_1d(
-            out, delimiter=r'\s+',
+            out,
+            delimiter=r"\s+",
             use_names=["q", "intensity"],
         )
         np.testing.assert_allclose(reloaded.q, sample_curve.q, rtol=1e-5)
-        np.testing.assert_allclose(reloaded.intensity, sample_curve.intensity, rtol=1e-5)
+        np.testing.assert_allclose(
+            reloaded.intensity, sample_curve.intensity, rtol=1e-5
+        )
         assert reloaded.error is None
 
     def test_no_error_column_when_curve_has_none(self, sample_curve_no_error, tmp_path):
@@ -263,7 +290,9 @@ class TestSaveAscii1D:
         save_ascii_1d(sample_curve_no_error, out, include_error=True)
         # File should have only 2 data columns
         content = out.read_text()
-        data_lines = [ln for ln in content.splitlines() if ln and not ln.startswith("#")]
+        data_lines = [
+            ln for ln in content.splitlines() if ln and not ln.startswith("#")
+        ]
         assert len(data_lines[0].split()) == 2
 
     def test_header_written(self, sample_curve, tmp_path):
@@ -277,7 +306,9 @@ class TestSaveAscii1D:
         out = tmp_path / "comma.dat"
         save_ascii_1d(sample_curve, out, delimiter=",", include_error=False)
         content = out.read_text()
-        data_lines = [ln for ln in content.splitlines() if ln and not ln.startswith("#")]
+        data_lines = [
+            ln for ln in content.splitlines() if ln and not ln.startswith("#")
+        ]
         assert "," in data_lines[0]
 
     def test_missing_parent_raises(self, sample_curve, tmp_path):

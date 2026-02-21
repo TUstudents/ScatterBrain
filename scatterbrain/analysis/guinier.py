@@ -13,6 +13,7 @@ from ..utils import AnalysisError
 
 logger = logging.getLogger(__name__)
 
+
 #
 # <<< PASTE THE ENTIRE guinier_fit FUNCTION CODE FROM THE PREVIOUS RESPONSE HERE >>>
 # (The one starting with "def guinier_fit(...)")
@@ -112,7 +113,8 @@ def guinier_fit(
     if len(q_data) < min_points:
         logger.warning(
             "Guinier fit: Insufficient data points (%d after filtering I>0) for analysis (min_points=%d).",
-            len(q_data), min_points,
+            len(q_data),
+            min_points,
         )
         return None
 
@@ -125,21 +127,24 @@ def guinier_fit(
     fit_indices: np.ndarray
     criteria_str: str = ""
 
-    if q_range is not None: # Manual q_range provided
+    if q_range is not None:  # Manual q_range provided
         manual_q_min, manual_q_max = q_range
         q_fit_min_val = manual_q_min if manual_q_min is not None else q_data.min()
         q_fit_max_val = manual_q_max if manual_q_max is not None else q_data.max()
         criteria_str = f"Manual q_range: ({q_fit_min_val:.3g}, {q_fit_max_val:.3g})"
         fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
 
-    else: # Automatic q-range selection
+    else:  # Automatic q-range selection
         criteria_str = "Automatic q_range selection: "
-        num_initial_points = max(min_points, int(len(q_data) * auto_q_selection_fraction))
+        num_initial_points = max(
+            min_points, int(len(q_data) * auto_q_selection_fraction)
+        )
         if num_initial_points < min_points:
             logger.warning(
                 "Guinier fit (auto-range): Not enough points (%d) for initial Rg estimate. "
                 "Using first %d points if available.",
-                num_initial_points, min_points,
+                num_initial_points,
+                min_points,
             )
             num_initial_points = min(min_points, len(q_data))
             if num_initial_points < min_points:
@@ -149,25 +154,36 @@ def guinier_fit(
         ln_i_initial = ln_i_data[:num_initial_points]
 
         if len(q_sq_initial) < 2:
-            logger.warning("Guinier fit (auto-range): Less than 2 points for initial Rg estimate.")
+            logger.warning(
+                "Guinier fit (auto-range): Less than 2 points for initial Rg estimate."
+            )
             return None
 
         try:
             regression_initial = linregress(q_sq_initial, ln_i_initial)
             slope_initial = regression_initial.slope
-            logger.debug("Auto-range initial slope: %.3g (expected negative for Guinier fit).", slope_initial)
+            logger.debug(
+                "Auto-range initial slope: %.3g (expected negative for Guinier fit).",
+                slope_initial,
+            )
         except ValueError:
-            logger.warning("Guinier fit (auto-range): ValueError during initial linear regression.")
+            logger.warning(
+                "Guinier fit (auto-range): ValueError during initial linear regression."
+            )
             return None
 
         # Issue warning for positive slope before any fallback logic
         if slope_initial >= 0:
-            logger.warning("Guinier fit (auto-range): Initial fit yielded non-negative slope; Guinier approximation may not be valid in this q-range.")
+            logger.warning(
+                "Guinier fit (auto-range): Initial fit yielded non-negative slope; Guinier approximation may not be valid in this q-range."
+            )
             # Fallback logic after warning
             q_fit_min_val = q_data.min()
-            q_fit_max_val = q_data[max(min_points-1, int(len(q_data) * 0.15))]
+            q_fit_max_val = q_data[max(min_points - 1, int(len(q_data) * 0.15))]
             criteria_str = "Fallback q-range due to initial positive slope. "
-            fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
+            fit_indices = np.where(
+                (q_data >= q_fit_min_val) & (q_data <= q_fit_max_val)
+            )[0]
         else:
             rg_initial_est = np.sqrt(-3 * slope_initial)
             criteria_str += f"Initial Rg_est={rg_initial_est:.3g}. "
@@ -182,23 +198,36 @@ def guinier_fit(
                 q_fit_max_val = min(q_fit_max_val, qrg_limit_max / rg_initial_est)
                 criteria_str += f"q_max_limit based on qRg_max={qrg_limit_max} -> q_max={q_fit_max_val:.3g}."
             else:
-                q_fit_max_val = min(q_fit_max_val, q_data[max(min_points-1, int(len(q_data) * 0.3))])
+                q_fit_max_val = min(
+                    q_fit_max_val, q_data[max(min_points - 1, int(len(q_data) * 0.3))]
+                )
                 criteria_str += f"Fallback q_max={q_fit_max_val:.3g} (no qRg_max or invalid Rg_est). "
-            
-            if q_fit_min_val >= q_fit_max_val: # Handle case where limits make range invalid
+
+            if (
+                q_fit_min_val >= q_fit_max_val
+            ):  # Handle case where limits make range invalid
                 logger.warning(
                     "Guinier fit (auto-range): q_min (%.3g) >= q_max (%.3g) after applying qRg limits. Expanding q_max.",
-                    q_fit_min_val, q_fit_max_val,
+                    q_fit_min_val,
+                    q_fit_max_val,
                 )
-                q_fit_max_val = q_data[min(len(q_data)-1, np.searchsorted(q_data, q_fit_min_val) + min_points)]
+                q_fit_max_val = q_data[
+                    min(
+                        len(q_data) - 1,
+                        np.searchsorted(q_data, q_fit_min_val) + min_points,
+                    )
+                ]
 
-
-            fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
+            fit_indices = np.where(
+                (q_data >= q_fit_min_val) & (q_data <= q_fit_max_val)
+            )[0]
 
     if len(fit_indices) < min_points:
         logger.warning(
             "Guinier fit: Selected q-range resulted in %d points, which is less than min_points=%d. Criteria: %s",
-            len(fit_indices), min_points, criteria_str,
+            len(fit_indices),
+            min_points,
+            criteria_str,
         )
         return None
 
@@ -215,8 +244,10 @@ def guinier_fit(
         p_value = regression_result.pvalue
         stderr_slope = regression_result.stderr
         stderr_intercept = regression_result.intercept_stderr
-    except ValueError: # pragma: no cover
-        logger.warning("Guinier fit: ValueError during final linear regression. Check selected data.")
+    except ValueError:  # pragma: no cover
+        logger.warning(
+            "Guinier fit: ValueError during final linear regression. Check selected data."
+        )
         return None
 
     if slope >= 0:
@@ -225,18 +256,28 @@ def guinier_fit(
             "The Guinier approximation may not be valid for this q-range or data."
         )
         return {
-            "Rg": np.nan, "Rg_err": np.nan, "I0": np.nan, "I0_err": np.nan,
-            "slope": slope, "intercept": intercept, "r_value": r_value,
-            "p_value": p_value, "stderr_slope": stderr_slope, "stderr_intercept": stderr_intercept,
-            "q_fit_min": q_fit_actual_min, "q_fit_max": q_fit_actual_max,
+            "Rg": np.nan,
+            "Rg_err": np.nan,
+            "I0": np.nan,
+            "I0_err": np.nan,
+            "slope": slope,
+            "intercept": intercept,
+            "r_value": r_value,
+            "p_value": p_value,
+            "stderr_slope": stderr_slope,
+            "stderr_intercept": stderr_intercept,
+            "q_fit_min": q_fit_actual_min,
+            "q_fit_max": q_fit_actual_max,
             "num_points_fit": len(q_sq_fit),
-            "valid_guinier_range_criteria": criteria_str + " (Warning: Positive Slope)"
+            "valid_guinier_range_criteria": criteria_str + " (Warning: Positive Slope)",
         }
 
     rg = np.sqrt(-3 * slope)
     i0 = np.exp(intercept)
 
-    rg_err = (1.5 / rg) * stderr_slope if rg > 0 and stderr_slope is not None else np.nan
+    rg_err = (
+        (1.5 / rg) * stderr_slope if rg > 0 and stderr_slope is not None else np.nan
+    )
     i0_err = i0 * stderr_intercept if stderr_intercept is not None else np.nan
 
     return {
@@ -253,5 +294,5 @@ def guinier_fit(
         "q_fit_min": q_fit_actual_min,
         "q_fit_max": q_fit_actual_max,
         "num_points_fit": len(q_sq_fit),
-        "valid_guinier_range_criteria": criteria_str.strip()
+        "valid_guinier_range_criteria": criteria_str.strip(),
     }

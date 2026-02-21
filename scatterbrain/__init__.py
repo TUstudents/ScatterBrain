@@ -36,14 +36,15 @@ import logging
 # Version of the scatterbrain package
 try:
     from importlib.metadata import version, PackageNotFoundError
+
     try:
         __version__ = version("scatterbrain")
     except PackageNotFoundError:
         # package is not installed, e.g. when running from source checkout
-        __version__ = "0.0.1.dev0" # Or a more dynamic way to get it if possible
+        __version__ = "0.0.1.dev0"  # Or a more dynamic way to get it if possible
 except ImportError:
     # For Python < 3.8
-    __version__ = "0.0.1.dev0" # Fallback
+    __version__ = "0.0.1.dev0"  # Fallback
 
 # Expose key classes or functions at the top level if desired.
 # For now, we will encourage importing from submodules.

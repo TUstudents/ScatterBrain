@@ -15,10 +15,11 @@ from scatterbrain.utils import ProcessingError
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def base_curve():
     q = np.linspace(0.1, 1.0, 20)
-    intensity = 100.0 * np.exp(-q ** 2 * 3 ** 2 / 3)
+    intensity = 100.0 * np.exp(-(q**2) * 3**2 / 3)
     error = np.sqrt(intensity) * 0.05
     return ScatteringCurve1D(q, intensity, error, q_unit="nm^-1", intensity_unit="a.u.")
 
@@ -26,7 +27,7 @@ def base_curve():
 @pytest.fixture
 def base_curve_no_error():
     q = np.linspace(0.1, 1.0, 20)
-    intensity = 100.0 * np.exp(-q ** 2 * 3 ** 2 / 3)
+    intensity = 100.0 * np.exp(-(q**2) * 3**2 / 3)
     return ScatteringCurve1D(q, intensity, q_unit="nm^-1", intensity_unit="a.u.")
 
 
@@ -36,8 +37,11 @@ def matching_bg_curve(base_curve):
     bg_intensity = np.full_like(base_curve.intensity, 5.0)
     bg_error = np.full_like(base_curve.intensity, 0.5)
     return ScatteringCurve1D(
-        base_curve.q.copy(), bg_intensity, bg_error,
-        q_unit="nm^-1", intensity_unit="a.u.",
+        base_curve.q.copy(),
+        bg_intensity,
+        bg_error,
+        q_unit="nm^-1",
+        intensity_unit="a.u.",
     )
 
 
@@ -52,6 +56,7 @@ def coarser_bg_curve(base_curve):
 # ---------------------------------------------------------------------------
 # Constant background
 # ---------------------------------------------------------------------------
+
 
 class TestConstantBackground:
     def test_basic_subtraction(self, base_curve):
@@ -91,8 +96,10 @@ class TestConstantBackground:
 
     def test_processing_history_updated(self, base_curve):
         result = subtract_background(base_curve, 5.0)
-        assert any("background" in entry.lower()
-                   for entry in result.metadata["processing_history"])
+        assert any(
+            "background" in entry.lower()
+            for entry in result.metadata["processing_history"]
+        )
 
     def test_units_preserved(self, base_curve):
         result = subtract_background(base_curve, 5.0)
@@ -104,6 +111,7 @@ class TestConstantBackground:
 # Curve background — matching grid
 # ---------------------------------------------------------------------------
 
+
 class TestCurveBackgroundMatchingGrid:
     def test_basic_subtraction(self, base_curve, matching_bg_curve):
         result = subtract_background(base_curve, matching_bg_curve)
@@ -113,7 +121,7 @@ class TestCurveBackgroundMatchingGrid:
 
     def test_error_propagation_in_quadrature(self, base_curve, matching_bg_curve):
         result = subtract_background(base_curve, matching_bg_curve)
-        expected_err = np.sqrt(base_curve.error ** 2 + matching_bg_curve.error ** 2)
+        expected_err = np.sqrt(base_curve.error**2 + matching_bg_curve.error**2)
         np.testing.assert_allclose(result.error, expected_err, rtol=1e-10)
 
     def test_scale_factor(self, base_curve, matching_bg_curve):
@@ -125,9 +133,7 @@ class TestCurveBackgroundMatchingGrid:
     def test_signal_no_error_bg_has_error(self, base_curve_no_error, matching_bg_curve):
         result = subtract_background(base_curve_no_error, matching_bg_curve)
         # Only bg error contributes
-        np.testing.assert_allclose(
-            result.error, matching_bg_curve.error, rtol=1e-10
-        )
+        np.testing.assert_allclose(result.error, matching_bg_curve.error, rtol=1e-10)
 
     def test_both_no_error(self, base_curve_no_error):
         bg = ScatteringCurve1D(
@@ -142,6 +148,7 @@ class TestCurveBackgroundMatchingGrid:
 # Curve background — interpolation
 # ---------------------------------------------------------------------------
 
+
 class TestCurveBackgroundInterpolation:
     def test_interpolated_subtraction(self, base_curve, coarser_bg_curve):
         result = subtract_background(base_curve, coarser_bg_curve, interpolate=True)
@@ -150,7 +157,9 @@ class TestCurveBackgroundInterpolation:
             result.intensity, base_curve.intensity - 5.0, atol=1e-10
         )
 
-    def test_no_interpolate_raises_on_mismatched_grids(self, base_curve, coarser_bg_curve):
+    def test_no_interpolate_raises_on_mismatched_grids(
+        self, base_curve, coarser_bg_curve
+    ):
         with pytest.raises(ProcessingError, match="interpolate"):
             subtract_background(base_curve, coarser_bg_curve, interpolate=False)
 
@@ -173,6 +182,7 @@ class TestCurveBackgroundInterpolation:
 # ---------------------------------------------------------------------------
 # Type errors
 # ---------------------------------------------------------------------------
+
 
 class TestTypeErrors:
     def test_curve_not_scatteringcurve1d(self):

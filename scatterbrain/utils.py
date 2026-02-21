@@ -5,20 +5,19 @@ Utility functions and constants for the ScatterBrain library.
 
 import logging
 import numpy as np
-from typing import Union
 
 logging.getLogger("scatterbrain").addHandler(logging.NullHandler())
 
 # Define common q-units for clarity, though they are just strings.
 # These could be enhanced with an Enum or a more structured unit system later.
 Q_ANGSTROM_INV = "A^-1"  # Angstrom inverse
-Q_NANOMETER_INV = "nm^-1" # Nanometer inverse
+Q_NANOMETER_INV = "nm^-1"  # Nanometer inverse
 
 # Conversion factors: 1 nm = 10 Angstrom
 # So, 1 nm^-1 = 0.1 A^-1
 # And 1 A^-1 = 10 nm^-1
 _CONVERSION_FACTORS_TO_NM_INV = {
-    Q_ANGSTROM_INV: 10.0,       # Multiply by 10 to convert A^-1 to nm^-1
+    Q_ANGSTROM_INV: 10.0,  # Multiply by 10 to convert A^-1 to nm^-1
     Q_NANOMETER_INV: 1.0,
     # Add more units as needed, e.g., "1/A", "1/nm", "Angstrom^-1", "nm^-1" variations
     "1/A": 10.0,
@@ -28,7 +27,7 @@ _CONVERSION_FACTORS_TO_NM_INV = {
 }
 
 _CONVERSION_FACTORS_FROM_NM_INV = {
-    Q_ANGSTROM_INV: 0.1,       # Multiply by 0.1 to convert nm^-1 to A^-1
+    Q_ANGSTROM_INV: 0.1,  # Multiply by 0.1 to convert nm^-1 to A^-1
     Q_NANOMETER_INV: 1.0,
     "1/A": 0.1,
     "1/nm": 1.0,
@@ -53,9 +52,7 @@ def normalize_unit_string(unit: str) -> str:
 
 
 def convert_q_array(
-    q_values: np.ndarray,
-    current_unit: str,
-    target_unit: str
+    q_values: np.ndarray, current_unit: str, target_unit: str
 ) -> np.ndarray:
     """
     Converts an array of q-values from a current unit to a target unit.
@@ -86,7 +83,10 @@ def convert_q_array(
         return np.copy(q_values)
 
     # First try direct lookup
-    if current_unit in _CONVERSION_FACTORS_TO_NM_INV and target_unit in _CONVERSION_FACTORS_FROM_NM_INV:
+    if (
+        current_unit in _CONVERSION_FACTORS_TO_NM_INV
+        and target_unit in _CONVERSION_FACTORS_FROM_NM_INV
+    ):
         factor_to_nm = _CONVERSION_FACTORS_TO_NM_INV[current_unit]
         factor_from_nm = _CONVERSION_FACTORS_FROM_NM_INV[target_unit]
         return q_values / factor_to_nm / factor_from_nm
@@ -112,24 +112,32 @@ def convert_q_array(
 
     factor_to_nm = _CONVERSION_FACTORS_TO_NM_INV[current_std]
     factor_from_nm = _CONVERSION_FACTORS_FROM_NM_INV[target_std]
-    
-    return q_values /factor_to_nm / factor_from_nm
+
+    return q_values / factor_to_nm / factor_from_nm
 
 
 class ScatterBrainError(Exception):
     """Base class for custom exceptions in ScatterBrain."""
+
     pass
+
 
 class ProcessingError(ScatterBrainError):
     """Exception raised for errors during data processing."""
+
     pass
+
 
 class AnalysisError(ScatterBrainError):
     """Exception raised for errors during data analysis."""
+
     pass
+
 
 class FittingError(ScatterBrainError):
     """Exception raised for errors during model fitting."""
+
     pass
+
 
 # Future: Add physical constants, more complex unit conversions, etc.

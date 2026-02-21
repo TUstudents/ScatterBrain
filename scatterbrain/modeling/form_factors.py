@@ -12,7 +12,6 @@ into a scale factor or I(0) when fitting I(q) = scale * P(q).
 """
 
 import numpy as np
-from scipy.special import j1 # Bessel function of the first kind, order 1
 
 # Small constant to prevent division by zero or issues with q=0
 # for functions where P(q=0) is handled by a limit.
@@ -92,8 +91,10 @@ def sphere_pq(q: np.ndarray, radius: float) -> np.ndarray:
     # Let's implement j_1(x) manually:
     x = qr[mask]
     j1_x = (np.sin(x) - x * np.cos(x)) / (x**2)
-    pq[mask] = (3.0 * j1_x / x)**2 # This expression does not look right for P(0)=1 without limit
-                                   # (3 * j1(x) / x)^2 -> (3 * (x/3) / x)^2 = 1 as x->0
+    pq[mask] = (
+        3.0 * j1_x / x
+    ) ** 2  # This expression does not look right for P(0)=1 without limit
+    # (3 * j1(x) / x)^2 -> (3 * (x/3) / x)^2 = 1 as x->0
 
     # Let's use the most common form from literature:
     # P(qR) = [3 * (sin(qR) - qR*cos(qR)) / (qR)^3]^2
@@ -105,7 +106,7 @@ def sphere_pq(q: np.ndarray, radius: float) -> np.ndarray:
     #            = 3 * (-1/6 + 1/2) * x^3 / x^3 = 3 * (2/6) = 3 * (1/3) = 1
     # So P(qR) -> 1^2 = 1.
 
-    x = qr[mask] # x = qR
+    x = qr[mask]  # x = qR
     func_val = 3.0 * (np.sin(x) - x * np.cos(x)) / (x**3)
     pq[mask] = func_val**2
 
@@ -113,22 +114,23 @@ def sphere_pq(q: np.ndarray, radius: float) -> np.ndarray:
 
 
 # Example usage:
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     import matplotlib.pyplot as plt
 
-    q_values = np.geomspace(0.001, 1.0, 200) # Use geomspace for log scale plotting
-    radius_sphere = 10.0 # e.g., in nm, so q is in nm^-1
+    q_values = np.geomspace(0.001, 1.0, 200)  # Use geomspace for log scale plotting
+    radius_sphere = 10.0  # e.g., in nm, so q is in nm^-1
 
     pq_sphere = sphere_pq(q_values, radius_sphere)
 
     # Check P(0)
-    print(f"P(q=0.001) for sphere (R={radius_sphere}): {pq_sphere[0]:.4f}") # Should be close to 1
+    print(
+        f"P(q=0.001) for sphere (R={radius_sphere}): {pq_sphere[0]:.4f}"
+    )  # Should be close to 1
     # For q=0 itself, it's handled to be 1.
     q_test_zero = np.array([0.0, 0.0001])
     pq_test_zero = sphere_pq(q_test_zero, radius_sphere)
     print(f"P(q=0) directly: {pq_test_zero[0]}")
     assert np.isclose(pq_test_zero[0], 1.0)
-
 
     plt.figure(figsize=(8, 6))
     plt.loglog(q_values, pq_sphere, label=f"Sphere P(q), R={radius_sphere} nm")
@@ -137,7 +139,7 @@ if __name__ == "__main__": # pragma: no cover
     plt.title("Form Factor for a Sphere")
     plt.legend()
     plt.grid(True, which="both", ls="-", alpha=0.5)
-    plt.ylim(1e-5, 2) # P(q) can go below 1e-4
+    plt.ylim(1e-5, 2)  # P(q) can go below 1e-4
     plt.show()
 
     # Test radius validation

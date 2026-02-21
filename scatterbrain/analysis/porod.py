@@ -20,7 +20,7 @@ def porod_analysis(
     q_fraction_high: float = 0.25,
     min_points: int = 5,
     expected_exponent: Optional[float] = 4.0,
-    fit_log_log: bool = True
+    fit_log_log: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
     Performs Porod analysis on a 1D scattering curve.
@@ -102,7 +102,7 @@ def porod_analysis(
         raise AnalysisError("Input 'curve' must be a ScatteringCurve1D object.")
 
     # --- Data preparation ---
-    valid_mask = (curve.intensity > 0) & (curve.q > 0) # Need q > 0 for log(q)
+    valid_mask = (curve.intensity > 0) & (curve.q > 0)  # Need q > 0 for log(q)
     if not np.any(valid_mask):
         logger.warning("Porod analysis: No positive intensity and q values found.")
         return None
@@ -113,7 +113,8 @@ def porod_analysis(
     if len(q_data) < min_points:
         logger.warning(
             "Porod analysis: Insufficient data points (%d after filtering) for analysis (min_points=%d).",
-            len(q_data), min_points,
+            len(q_data),
+            min_points,
         )
         return None
 
@@ -126,22 +127,27 @@ def porod_analysis(
     else:
         num_points_to_take = max(min_points, int(len(q_data) * q_fraction_high))
         if num_points_to_take < min_points and len(q_data) >= min_points:
-             num_points_to_take = min_points # Ensure at least min_points if available overall
-        elif num_points_to_take < min_points: # Not enough points even overall
-            logger.warning("Porod analysis: Not enough points for auto q-range based on q_fraction_high.")
+            num_points_to_take = (
+                min_points  # Ensure at least min_points if available overall
+            )
+        elif num_points_to_take < min_points:  # Not enough points even overall
+            logger.warning(
+                "Porod analysis: Not enough points for auto q-range based on q_fraction_high."
+            )
             return None
 
-        q_fit_min_val = q_data[-num_points_to_take] # Start from high-q end
+        q_fit_min_val = q_data[-num_points_to_take]  # Start from high-q end
         q_fit_max_val = q_data.max()
         method_str_range = f"Automatic q_range (highest {q_fraction_high*100:.0f}% of q, min {num_points_to_take} pts)"
-
 
     fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
 
     if len(fit_indices) < min_points:
         logger.warning(
             "Porod analysis: Selected q-range resulted in %d points, which is less than min_points=%d. Range: %s",
-            len(fit_indices), min_points, method_str_range,
+            len(fit_indices),
+            min_points,
+            method_str_range,
         )
         return None
 
@@ -166,8 +172,10 @@ def porod_analysis(
             r_value = regression_result.rvalue
             stderr_slope = regression_result.stderr
             stderr_intercept = regression_result.intercept_stderr
-        except ValueError: # pragma: no cover
-            logger.warning("Porod analysis (log-log fit): ValueError during linear regression.")
+        except ValueError:  # pragma: no cover
+            logger.warning(
+                "Porod analysis (log-log fit): ValueError during linear regression."
+            )
             return None
 
         porod_exponent_n = -slope
@@ -183,37 +191,47 @@ def porod_analysis(
         # Kp_err = Kp * ln(10) * stderr_intercept
         porod_constant_kp_err = (
             porod_constant_kp * np.log(10) * stderr_intercept
-            if stderr_intercept is not None else np.nan
+            if stderr_intercept is not None
+            else np.nan
         )
 
-        results.update({
-            "porod_exponent": porod_exponent_n,
-            "porod_exponent_err": porod_exponent_n_err,
-            "porod_constant_kp": porod_constant_kp,
-            "porod_constant_kp_err": porod_constant_kp_err,
-            "log_kp_intercept": intercept,
-            "log_kp_intercept_err": stderr_intercept,
-            "r_value": r_value,
-            "method": f"Log-log fit. {method_str_range}"
-        })
+        results.update(
+            {
+                "porod_exponent": porod_exponent_n,
+                "porod_exponent_err": porod_exponent_n_err,
+                "porod_constant_kp": porod_constant_kp,
+                "porod_constant_kp_err": porod_constant_kp_err,
+                "log_kp_intercept": intercept,
+                "log_kp_intercept_err": stderr_intercept,
+                "r_value": r_value,
+                "method": f"Log-log fit. {method_str_range}",
+            }
+        )
 
-    else: # Calculate average Kp using expected_exponent
+    else:  # Calculate average Kp using expected_exponent
         if expected_exponent is None:
-            logger.warning("Porod analysis: 'expected_exponent' must be provided if 'fit_log_log' is False.")
+            logger.warning(
+                "Porod analysis: 'expected_exponent' must be provided if 'fit_log_log' is False."
+            )
             return None
 
-        kp_values = i_fit * (q_fit ** expected_exponent)
+        kp_values = i_fit * (q_fit**expected_exponent)
         porod_constant_kp = np.mean(kp_values)
         # Error on mean Kp could be std(kp_values) / sqrt(N) or propagated if errors on I are known
-        porod_constant_kp_err = np.std(kp_values) / np.sqrt(len(kp_values)) if len(kp_values) > 1 else np.nan
+        porod_constant_kp_err = (
+            np.std(kp_values) / np.sqrt(len(kp_values))
+            if len(kp_values) > 1
+            else np.nan
+        )
 
-
-        results.update({
-            "porod_exponent": expected_exponent, # This is the assumed exponent
-            "porod_exponent_err": np.nan, # Not fitted
-            "porod_constant_kp": porod_constant_kp,
-            "porod_constant_kp_err": porod_constant_kp_err,
-            "method": f"Average Kp = I*q^{expected_exponent}. {method_str_range}"
-        })
+        results.update(
+            {
+                "porod_exponent": expected_exponent,  # This is the assumed exponent
+                "porod_exponent_err": np.nan,  # Not fitted
+                "porod_constant_kp": porod_constant_kp,
+                "porod_constant_kp_err": porod_constant_kp_err,
+                "method": f"Average Kp = I*q^{expected_exponent}. {method_str_range}",
+            }
+        )
 
     return results
