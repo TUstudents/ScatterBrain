@@ -1,8 +1,8 @@
-# ScatterBrain — Phase 1 Plan: Core Skeleton Implementation
+# ScatterBrain -- Phase 1 Plan: Core Skeleton Implementation
 
 **Version:** 2.0
 **Branch:** `main`
-**Reference:** `Design_document.md` §8.2, `PHASE0_PLAN.md`
+**Reference:** `Design_document.md` sec.8.2, `PHASE0_PLAN.md`
 
 ---
 
@@ -25,48 +25,48 @@ All Phase 1 tasks audited against the live codebase. The test suite runs
 
 | Task | Component | Status | Notes |
 |------|-----------|--------|-------|
-| 1.1 Packaging | `pyproject.toml` + `uv_build` | ✅ Done | `uv_build` discovers all sub-packages automatically; no manual stanza needed |
-| 1.2 I/O save | `scatterbrain/io.py` → `save_ascii_1d` | ✅ Done | Tab-delimited, auto header, round-trip tested |
-| 1.3 Processing | `scatterbrain/processing/background.py` → `subtract_background` | ✅ Done | Constant + curve modes, interpolation, quadrature error propagation; 98% coverage |
-| 1.4 Visualization | `plot_guinier` | ✅ Done | ln(I) vs q², fit overlay, Rg/I₀ annotation, error bars |
-| 1.5 Visualization | `plot_porod` | ✅ Done | Iq⁴ and logI/logq modes, fit overlay |
-| 1.6 Visualization | `plot_fit` | ✅ Done | Data + model overlay, normalised residual panel, χ² annotation |
-| 1.7 Cleanup | `visualization_renamed/` artifact | ✅ Done | Directory removed |
-| 1.8 Tutorial notebook | `notebooks/01_basic_workflow.ipynb` | ✅ Done | End-to-end MVP workflow |
-| 1.9 GitHub Actions CI | `.github/workflows/ci.yml` | ✅ Done | `uv`-based; Python 3.10/3.11/3.12; black, flake8, mypy, pytest + coverage, sphinx |
-| 1.10 Tests | `tests/` — 183 passing | ✅ Done | All new components covered |
-| — | Core data structure | ✅ Done | Exceeds spec: `__getitem__`, `to_dict/from_dict`, `convert_q_unit` |
-| — | I/O load | ✅ Done | Robust pandas-based implementation; 96% coverage |
-| — | Guinier analysis | ✅ Done | Auto q-range, error propagation; 86% coverage |
-| — | Porod analysis | ✅ Done | Log-log fit + average-Kp mode; 95% coverage |
-| — | Sphere form factor | ✅ Done | Correct P(0)=1 limit; 100% coverage |
-| — | `fit_model` | ✅ Done | scale+bg wrapper, fixed params, χ²; 92% coverage |
-| — | `plot_iq` | ✅ Done | Multi-curve, error bars, auto axis labels; 97% visualization coverage |
-| — | Utilities | ✅ Done | `convert_q_array`, exception hierarchy, NullHandler logging; 81% coverage |
-| — | Logging system | ✅ Done | Silent by default, `configure_logging()`, per-module propagation; tested in `test_logging.py` |
+| 1.1 Packaging | `pyproject.toml` + `uv_build` | Done | `uv_build` discovers all sub-packages automatically; no manual stanza needed |
+| 1.2 I/O save | `scatterbrain/io.py` -> `save_ascii_1d` | Done | Tab-delimited, auto header, round-trip tested |
+| 1.3 Processing | `scatterbrain/processing/background.py` -> `subtract_background` | Done | Constant + curve modes, interpolation, quadrature error propagation; 98% coverage |
+| 1.4 Visualization | `plot_guinier` | Done | ln(I) vs q^2, fit overlay, Rg/I0 annotation, error bars |
+| 1.5 Visualization | `plot_porod` | Done | Iq^4 and logI/logq modes, fit overlay |
+| 1.6 Visualization | `plot_fit` | Done | Data + model overlay, normalised residual panel, chi^2 annotation |
+| 1.7 Cleanup | `visualization_renamed/` artifact | Done | Directory removed |
+| 1.8 Tutorial notebook | `notebooks/01_basic_workflow.ipynb` | Done | End-to-end MVP workflow |
+| 1.9 GitHub Actions CI | `.github/workflows/ci.yml` | Done | `uv`-based; Python 3.10/3.11/3.12; black, flake8, mypy, pytest + coverage, sphinx |
+| 1.10 Tests | `tests/` -- 183 passing | Done | All new components covered |
+| -- | Core data structure | Done | Exceeds spec: `__getitem__`, `to_dict/from_dict`, `convert_q_unit` |
+| -- | I/O load | Done | Robust pandas-based implementation; 96% coverage |
+| -- | Guinier analysis | Done | Auto q-range, error propagation; 86% coverage |
+| -- | Porod analysis | Done | Log-log fit + average-Kp mode; 95% coverage |
+| -- | Sphere form factor | Done | Correct P(0)=1 limit; 100% coverage |
+| -- | `fit_model` | Done | scale+bg wrapper, fixed params, chi^2; 92% coverage |
+| -- | `plot_iq` | Done | Multi-curve, error bars, auto axis labels; 97% visualization coverage |
+| -- | Utilities | Done | `convert_q_array`, exception hierarchy, NullHandler logging; 81% coverage |
+| -- | Logging system | Done | Silent by default, `configure_logging()`, per-module propagation; tested in `test_logging.py` |
 
 **Outstanding items (new tasks below):**
 
 | Task | Component | Status | Notes |
 |------|-----------|--------|-------|
-| 1.11 | `plot_fit` tight_layout warning | ⚠️ Warning | 5 `UserWarning` from matplotlib about incompatible axes |
-| 1.12 | Typed analysis return types | ❌ Missing | `guinier_fit` and `porod_analysis` return plain `dict`; no IDE support |
-| 1.13 | Notebook smoke test in CI | ❌ Missing | `notebooks/01_basic_workflow.ipynb` is not executed in CI |
-| 1.14 | Dead code in `__init__.py` | ⚠️ Cleanup | Python <3.8 `ImportError` fallback (lines 42-47) is unreachable on ≥3.10; pulls coverage to 65% |
+| 1.11 | `plot_fit` tight_layout warning | Warning | 5 `UserWarning` from matplotlib about incompatible axes |
+| 1.12 | Typed analysis return types | Missing | `guinier_fit` and `porod_analysis` return plain `dict`; no IDE support |
+| 1.13 | Notebook smoke test in CI | Missing | `notebooks/01_basic_workflow.ipynb` is not executed in CI |
+| 1.14 | Dead code in `__init__.py` | Cleanup | Python <3.8 `ImportError` fallback (lines 42-47) is unreachable on >=3.10; pulls coverage to 65% |
 
 ---
 
 ## Completed Tasks (for record)
 
-### 1.1 — Packaging ✅
+### 1.1 -- Packaging Done:
 `uv_build` is declared as the build backend in `pyproject.toml [build-system]`.
 It discovers all sub-packages (`scatterbrain.*`) automatically from the source
-tree — no `[tool.setuptools.packages.find]` stanza is needed. The original
+tree -- no `[tool.setuptools.packages.find]` stanza is needed. The original
 setuptools gap no longer applies.
 
 ---
 
-### 1.2 — `save_ascii_1d` ✅
+### 1.2 -- `save_ascii_1d` Done:
 Implemented in `scatterbrain/io.py:291`. Writes tab-delimited output with
 auto-generated comment header (`# q [unit]`, `# intensity [unit]`,
 `# Saved by ScatterBrain vX.Y.Z`). Round-trip test in `tests/test_io.py`
@@ -74,7 +74,7 @@ verifies q, intensity, and error are recovered within floating-point tolerance.
 
 ---
 
-### 1.3 — `subtract_background` ✅
+### 1.3 -- `subtract_background` Done:
 Implemented in `scatterbrain/processing/background.py`. Supports constant float
 and `ScatteringCurve1D` backgrounds. Interpolation via `numpy.interp` when
 q-grids differ. Quadrature error propagation. Appends to
@@ -83,56 +83,56 @@ Full test suite in `tests/test_processing.py`. Coverage: 98%.
 
 ---
 
-### 1.4 — `plot_guinier` ✅
-Implemented in `scatterbrain/visualization.py:208`. Plots ln(I) vs q²,
-propagated error bars (σ_lnI = σ_I / I), optional fit overlay and Rg/I₀
+### 1.4 -- `plot_guinier` Done:
+Implemented in `scatterbrain/visualization.py:208`. Plots ln(I) vs q^2,
+propagated error bars (sigma_lnI = sigma_I / I), optional fit overlay and Rg/I0
 annotation, optional q-range shading.
 
 ---
 
-### 1.5 — `plot_porod` ✅
+### 1.5 -- `plot_porod` Done:
 Implemented in `scatterbrain/visualization.py:341`. Two modes: `"Iq4_vs_q"`
-(linear axes, Porod plateau) and `"logI_vs_logq"` (slope ≈ −n). Optional
+(linear axes, Porod plateau) and `"logI_vs_logq"` (slope ~ -n). Optional
 fit overlay with exponent and Kp annotation.
 
 ---
 
-### 1.6 — `plot_fit` ✅
+### 1.6 -- `plot_fit` Done:
 Implemented in `scatterbrain/visualization.py:505`. Upper panel: data +
-model overlay. Lower panel: normalised residuals (I_data − I_model) / σ
+model overlay. Lower panel: normalised residuals (I_data - I_model) / sigma
 with zero line (when errors available and `plot_residuals=True`). Annotates
-with reduced χ² and fitted parameters.
+with reduced chi^2 and fitted parameters.
 
 ---
 
-### 1.7 — `visualization_renamed/` cleanup ✅
+### 1.7 -- `visualization_renamed/` cleanup Done:
 Empty stale directory has been removed from the repository.
 
 ---
 
-### 1.8 — Tutorial Notebook ✅
+### 1.8 -- Tutorial Notebook Done:
 `notebooks/01_basic_workflow.ipynb` exists and demonstrates the full MVP
-workflow: load → plot → background subtract → Guinier → Porod → sphere fit →
+workflow: load -> plot -> background subtract -> Guinier -> Porod -> sphere fit ->
 save.
 
 ---
 
-### 1.9 — GitHub Actions CI ✅
+### 1.9 -- GitHub Actions CI Done:
 `.github/workflows/ci.yml` uses `uv` (not `pip`) throughout:
 - `astral-sh/setup-uv@v5` for environment setup
 - `uv sync --all-extras` for dependency installation
 - `uv run` prefix for all tool invocations
 - Matrix: Python 3.10, 3.11, 3.12; `fail-fast: false`
-- Steps: black --check → flake8 → mypy (continue-on-error) → pytest + coverage → codecov upload
+- Steps: black --check -> flake8 -> mypy (continue-on-error) -> pytest + coverage -> codecov upload
 - Separate `docs` job: sphinx-build with `-W` (warnings as errors)
 
-**Note:** The original plan spec showed `pip install -e ".[dev]"` steps — the
+**Note:** The original plan spec showed `pip install -e ".[dev]"` steps -- the
 actual implementation uses `uv` throughout, which is correct per the tech
 stack decision.
 
 ---
 
-### 1.10 — Tests ✅
+### 1.10 -- Tests Done:
 183 tests passing, 0 failing. All new components have dedicated test files.
 Total coverage: **93%**. Per-module coverage:
 
@@ -145,13 +145,13 @@ Total coverage: **93%**. Per-module coverage:
 | `modeling/fitting.py` | 92% |
 | `analysis/guinier.py` | 86% |
 | `utils.py` | 81% |
-| `__init__.py` | 65% (dead code — see task 1.14) |
+| `__init__.py` | 65% (dead code -- see task 1.14) |
 
 ---
 
 ## New Tasks
 
-### 1.11 — Fix `plot_fit` `tight_layout` UserWarning
+### 1.11 -- Fix `plot_fit` `tight_layout` UserWarning
 
 **Problem:** `plot_fit` calls `fig.tight_layout()` after creating a subplot
 layout with `gridspec_kw`. When the residuals panel is included, matplotlib
@@ -163,7 +163,7 @@ tight_layout, so results might be incorrect.
 This appears in 3 test runs and will appear for every user call with residuals.
 
 **Fix:** Replace `fig.tight_layout()` with `fig.set_layout_engine("constrained")`
-(matplotlib ≥ 3.6, already required by our `matplotlib>=3.5` pin) which
+(matplotlib >= 3.6, already required by our `matplotlib>=3.5` pin) which
 handles complex subplot layouts correctly.
 
 **Files:** `scatterbrain/visualization.py`
@@ -172,7 +172,7 @@ after the fix (use `pytest.warns(None)` or verify via `recwarn`).
 
 ---
 
-### 1.12 — Add Typed Return Types for Analysis Results
+### 1.12 -- Add Typed Return Types for Analysis Results
 
 **Problem:** `guinier_fit` and `porod_analysis` return plain `dict`. Users
 get no IDE autocomplete, no field name checking, and no stable API contract.
@@ -215,7 +215,7 @@ class PorodResult(TypedDict, total=False):
 **Behaviour:**
 - Change the return annotation of `guinier_fit` from `Optional[Dict[str, Any]]`
   to `Optional[GuinierResult]` and of `porod_analysis` to `Optional[PorodResult]`.
-- `TypedDict` is a pure type annotation — no runtime change, fully backwards
+- `TypedDict` is a pure type annotation -- no runtime change, fully backwards
   compatible. All existing callers using `result["Rg"]` continue to work.
 - Export `GuinierResult` and `PorodResult` from `scatterbrain.analysis`.
 
@@ -224,26 +224,26 @@ class PorodResult(TypedDict, total=False):
 - `scatterbrain/analysis/porod.py`
 - `scatterbrain/analysis/__init__.py`
 
-**Tests:** No new tests needed — type correctness is verified by `mypy`.
+**Tests:** No new tests needed -- type correctness is verified by `mypy`.
 Add a `mypy` smoke check to CI once `disallow_untyped_defs` is enabled (Phase 2).
 
 ---
 
-### 1.13 — Notebook Smoke Test in CI
+### 1.13 -- Notebook Smoke Test in CI
 
 **Problem:** `notebooks/01_basic_workflow.ipynb` is never executed in CI.
 The notebook could silently break when the API changes. The design document
-(§10) states notebooks serve as end-to-end acceptance tests.
+(sec.10) states notebooks serve as end-to-end acceptance tests.
 
 **Specification:** Add `nbmake` to dev dependencies and a CI step:
 
 ```toml
-# pyproject.toml [tool.uv] dev-dependencies — add:
+# pyproject.toml [tool.uv] dev-dependencies -- add:
 "nbmake>=1.4",
 ```
 
 ```yaml
-# .github/workflows/ci.yml — add to test job steps:
+# .github/workflows/ci.yml -- add to test job steps:
 - name: Run tutorial notebook
   run: uv run pytest --nbmake notebooks/01_basic_workflow.ipynb
 ```
@@ -260,7 +260,7 @@ end-to-end on each Python version in the matrix.
 
 ---
 
-### 1.14 — Remove Dead Python <3.8 Code from `__init__.py`
+### 1.14 -- Remove Dead Python <3.8 Code from `__init__.py`
 
 **Problem:** `scatterbrain/__init__.py` contains an `ImportError` fallback
 for `importlib.metadata` that targets Python <3.8:
@@ -272,7 +272,7 @@ try:
         __version__ = version("scatterbrain")
     except PackageNotFoundError:
         __version__ = "0.0.1.dev0"
-except ImportError:        # ← unreachable: Python >=3.10 always has importlib.metadata
+except ImportError:        # <- unreachable: Python >=3.10 always has importlib.metadata
     __version__ = "0.0.1.dev0"
 ```
 
@@ -292,7 +292,7 @@ except PackageNotFoundError:
 ```
 
 **Files:** `scatterbrain/__init__.py`
-**Tests:** Existing `test_basic.py` covers `__version__` — no new tests needed.
+**Tests:** Existing `test_basic.py` covers `__version__` -- no new tests needed.
 Coverage on `__init__.py` should rise from 65% to ~85%+ after removal.
 
 ---
@@ -300,10 +300,10 @@ Coverage on `__init__.py` should rise from 65% to ~85%+ after removal.
 ## Priority Order
 
 ```
-1.14  Remove dead __init__.py code     ← trivial cleanup, coverage win
-1.11  Fix tight_layout warning         ← affects every plot_fit call
-1.12  Typed return types               ← usability; pure annotation, no risk
-1.13  Notebook CI smoke test           ← acceptance test coverage
+1.14  Remove dead __init__.py code     <- trivial cleanup, coverage win
+1.11  Fix tight_layout warning         <- affects every plot_fit call
+1.12  Typed return types               <- usability; pure annotation, no risk
+1.13  Notebook CI smoke test           <- acceptance test coverage
 ```
 
 ---
@@ -312,20 +312,20 @@ Coverage on `__init__.py` should rise from 65% to ~85%+ after removal.
 
 | Criterion | Status |
 |-----------|--------|
-| `uv sync && python -c "from scatterbrain.analysis.guinier import guinier_fit"` works in fresh env | ✅ |
-| `subtract_background` implemented and all tests pass | ✅ |
-| `save_ascii_1d` implemented and round-trip test passes | ✅ |
-| `plot_guinier`, `plot_porod`, `plot_fit` implemented (no `NotImplementedError`) | ✅ |
-| `visualization_renamed/` removed | ✅ |
-| `notebooks/01_basic_workflow.ipynb` exists | ✅ |
-| `pytest` ≥ 150 passing, 0 failing | ✅ 183 passing |
-| Test coverage ≥ 80% on `scatterbrain/` (excluding `reduction/` placeholder) | ✅ 93% total |
-| GitHub Actions CI on Python 3.10, 3.11, 3.12 | ✅ |
-| `README.md` installation section uses `uv` | ❓ Verify |
-| `plot_fit` produces no `UserWarning` | ❌ Task 1.11 |
-| Typed return types for `guinier_fit` / `porod_analysis` | ❌ Task 1.12 |
-| Notebook executed in CI | ❌ Task 1.13 |
-| Dead Python <3.8 code removed from `__init__.py` | ❌ Task 1.14 |
+| `uv sync && python -c "from scatterbrain.analysis.guinier import guinier_fit"` works in fresh env | Done    |
+| `subtract_background` implemented and all tests pass | Done    |
+| `save_ascii_1d` implemented and round-trip test passes | Done    |
+| `plot_guinier`, `plot_porod`, `plot_fit` implemented (no `NotImplementedError`) | Done    |
+| `visualization_renamed/` removed | Done    |
+| `notebooks/01_basic_workflow.ipynb` exists | Done    |
+| `pytest` >= 150 passing, 0 failing | Done: 183 passing |
+| Test coverage >= 80% on `scatterbrain/` (excluding `reduction/` placeholder) | Done: 93% total |
+| GitHub Actions CI on Python 3.10, 3.11, 3.12 | Done    |
+| `README.md` installation section uses `uv` | Unverified |
+| `plot_fit` produces no `UserWarning` | Pending: Task 1.11 |
+| Typed return types for `guinier_fit` / `porod_analysis` | Pending: Task 1.12 |
+| Notebook executed in CI | Pending: Task 1.13 |
+| Dead Python <3.8 code removed from `__init__.py` | Pending: Task 1.14 |
 
 ---
 
