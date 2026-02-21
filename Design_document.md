@@ -1,12 +1,8 @@
-Okay, here is a complete Design Document for the `ScatterBrain` Python library, synthesizing your `ScatterBrain` proposal and your "SOP for Developing Complex Python Libraries."
-
----
-
 # `ScatterBrain`: Design Document
 
-**Version:** 0.1
-**Date:** October 26, 2023
-**Author/AI Assistant:** Based on user prompts and SOP.
+**Version:** 0.2
+**Date:** February 2026
+**Authors:** Johannes Poms et al.
 
 **Reference:** This document is developed in accordance with the "Standard Operating Procedure for Developing Complex Python Libraries and Knowledge Bases" (SOP_Python_libs.md).
 
@@ -141,8 +137,8 @@ The development of `ScatterBrain` will adhere to the following principles, as ou
     *   (Future SAXS) Kratky plots, Pair Distance Distribution Function ($p(r)$ via IFT).
     *   (Future WAXS) Peak finding, fitting, $d$-spacing, Scherrer equation, crystallinity.
 *   **Key Classes/Functions (Initial):**
-    *   `guinier_fit(curve, q_range=None, auto_q_limit_factor=1.3)`: Returns `dict` or `GuinierResult` object with $R_g, I(0)$, errors, fit quality.
-    *   `porod_analysis(curve, q_range=None)`: Returns `dict` or `PorodResult` object with Porod constant, exponent.
+    *   `guinier_fit(curve, q_range=None, qrg_limit_max=1.3)`: Returns `Optional[GuinierResult]` with Rg, I0, errors, fit quality. `GuinierResult` is a `TypedDict` exported from `scatterbrain.analysis`.
+    *   `porod_analysis(curve, q_range=None, fit_log_log=True)`: Returns `Optional[PorodResult]` with Porod constant, exponent. `PorodResult` is a `TypedDict` with `total=False` (three keys absent when `fit_log_log=False`).
 *   **Dependencies:** `numpy`, `scipy.optimize` (for fitting), `scipy.stats` (for linear regression).
 *   **Phase 1 Implementation:** Implement `guinier_fit` with basic linear regression and optional automatic $q$-range selection. Implement `porod_analysis` based on fitting or slope in Porod plot.
 
@@ -288,7 +284,7 @@ ScatterBrain/
 This plan follows the SOP, Section II.
 
 ### 8.1. Phase 0: Foundation & Planning
-*   **Status:** Largely complete (SOP document, this Design Document).
+*   **Status:** Complete. All Phase 0 deliverables are done; see `PHASE0_PLAN.md` for the full checklist.
 *   **Recap Existing Knowledge:**
     *   SAXS/WAXS is a well-established field. Key existing software includes SasView, RAW, Irena/Nika (Igor Pro), Scatter, various beamline-specific tools.
     *   Python ecosystem has `pyFAI`, `Dioptas`, parts of `SciKit-GISAXS`.
@@ -298,6 +294,7 @@ This plan follows the SOP, Section II.
 *   **Directory Structure:** As per Section 6.
 
 ### 8.2. Phase 1: Core Skeleton Implementation (First Iteration)
+*   **Status:** Complete. 183 tests passing, 93% coverage. See `PHASE1_PLAN.md` for the full task audit.
 *   **Goal:** Create a minimally functional library capable of loading 1D ASCII data, performing basic Guinier and Porod analysis, fitting a sphere model, and generating simple plots.
 *   **Tasks:**
     1.  **Project Setup:** Initialize Git repository, `pyproject.toml`, `README.md`, `LICENSE`, `.gitignore`, basic `docs/source/conf.py` and `index.rst`.
@@ -310,7 +307,7 @@ This plan follows the SOP, Section II.
         *   Implement `scatterbrain.modeling.form_factors.sphere_pq`.
         *   Implement a basic `scatterbrain.modeling.fit_model` using `scipy.optimize.curve_fit` for the sphere model.
     6.  **Visualization:** Implement `scatterbrain.visualization.plot_iq`, `plot_guinier`, `plot_porod`, `plot_fit` using `matplotlib`.
-    7.  **Utilities:** Implement `scatterbrain.utils.convert_q` and `ScatterBrainError`.
+    7.  **Utilities:** Implement `scatterbrain.utils.convert_q_array` and `ScatterBrainError`.
     8.  **Basic Pipeline/Orchestration:** Create an example script in `examples/` demonstrating the load-analyze-plot workflow.
     9.  **Unit Tests:** Write `pytest` tests for all implemented classes and functions. Start with `tests/test_core.py`, `tests/test_io.py`. Use simple, verifiable input data.
     10. **Documentation:** Write docstrings for all public code. Populate `README.md` with installation and basic usage.
