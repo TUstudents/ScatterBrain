@@ -4,7 +4,7 @@ Guinier analysis functions for SAXS data.
 """
 
 import logging
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, TypedDict
 import numpy as np
 from scipy.stats import linregress
 
@@ -12,6 +12,29 @@ from ..core import ScatteringCurve1D
 from ..utils import AnalysisError
 
 logger = logging.getLogger(__name__)
+
+
+class GuinierResult(TypedDict):
+    """Return type of :func:`guinier_fit`.
+
+    All keys are always present; values may be ``nan`` when the fit yields
+    a non-negative slope (physically invalid Guinier region).
+    """
+
+    Rg: float
+    Rg_err: float
+    I0: float
+    I0_err: float
+    slope: float
+    intercept: float
+    r_value: float
+    p_value: float
+    stderr_slope: float
+    stderr_intercept: float
+    q_fit_min: float
+    q_fit_max: float
+    num_points_fit: int
+    valid_guinier_range_criteria: str
 
 
 #
@@ -25,7 +48,7 @@ def guinier_fit(
     qrg_limit_min: Optional[float] = None,
     auto_q_selection_fraction: float = 0.1,
     min_points: int = 5,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[GuinierResult]:
     """
     Performs Guinier analysis on a 1D scattering curve to determine the
     Radius of Gyration (Rg) and forward scattering intensity (I0).

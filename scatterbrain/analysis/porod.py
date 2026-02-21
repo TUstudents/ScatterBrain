@@ -4,7 +4,7 @@ Porod analysis functions for SAXS data.
 """
 
 import logging
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, TypedDict
 import numpy as np
 from scipy.stats import linregress
 
@@ -14,6 +14,30 @@ from ..utils import AnalysisError
 logger = logging.getLogger(__name__)
 
 
+class PorodResult(TypedDict, total=False):
+    """Return type of :func:`porod_analysis`.
+
+    Keys present in all cases: ``porod_exponent``, ``porod_exponent_err``,
+    ``porod_constant_kp``, ``porod_constant_kp_err``, ``q_fit_min``,
+    ``q_fit_max``, ``num_points_fit``, ``method``.
+
+    Keys present only when ``fit_log_log=True``: ``log_kp_intercept``,
+    ``log_kp_intercept_err``, ``r_value``.
+    """
+
+    porod_exponent: float
+    porod_exponent_err: float
+    porod_constant_kp: float
+    porod_constant_kp_err: float
+    log_kp_intercept: float
+    log_kp_intercept_err: float
+    r_value: float
+    q_fit_min: float
+    q_fit_max: float
+    num_points_fit: int
+    method: str
+
+
 def porod_analysis(
     curve: ScatteringCurve1D,
     q_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
@@ -21,7 +45,7 @@ def porod_analysis(
     min_points: int = 5,
     expected_exponent: Optional[float] = 4.0,
     fit_log_log: bool = True,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[PorodResult]:
     """
     Performs Porod analysis on a 1D scattering curve.
 
@@ -154,7 +178,7 @@ def porod_analysis(
     q_fit = q_data[fit_indices]
     i_fit = i_data[fit_indices]
 
-    results: Dict[str, Any] = {
+    results: PorodResult = {
         "q_fit_min": q_fit.min(),
         "q_fit_max": q_fit.max(),
         "num_points_fit": len(q_fit),

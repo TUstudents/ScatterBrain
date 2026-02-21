@@ -117,6 +117,7 @@ dev-dependencies = [
     "flake8-print",
     "isort>=5.10",
     "mypy>=1.0",
+    "nbmake>=1.4",
     "twine>=4.0",
     "build>=0.10",
 ]

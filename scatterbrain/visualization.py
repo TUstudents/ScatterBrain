@@ -562,7 +562,8 @@ def plot_fit(
             1,
             figsize=(7, 7),
             sharex=True,
-            gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05},
+            gridspec_kw={"height_ratios": [3, 1]},
+            constrained_layout=True,
         )
     else:
         fig, current_ax_main = plt.subplots(figsize=(7, 5))
@@ -648,7 +649,10 @@ def plot_fit(
         current_ax_res.axhline(1, color="gray", linewidth=0.5, linestyle=":")
         current_ax_res.axhline(-1, color="gray", linewidth=0.5, linestyle=":")
 
-    fig.tight_layout()
+    # constrained_layout (set at figure creation for the residuals case) manages
+    # spacing internally; calling tight_layout on top of it triggers a warning.
+    if not fig.get_constrained_layout():
+        fig.tight_layout()
     return fig
 
 
