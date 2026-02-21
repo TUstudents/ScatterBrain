@@ -2,6 +2,7 @@
 """
 Unit tests for the scatterbrain.io module.
 """
+import logging
 import pytest
 import numpy as np
 import pathlib
@@ -134,11 +135,10 @@ class TestLoadAscii1D:
         with pytest.raises(ValueError, match="Pandas could not read the file"):
             load_ascii_1d(filepath, skip_header=3) # Skip all lines
 
-    def test_malformed_data_coercion_and_warning(self):
+    def test_malformed_data_coercion_and_warning(self, caplog):
         """Test behavior with non-numeric data in columns - should coerce and warn."""
         filepath = TEST_DATA_DIR / "malformed_data.dat"
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always") # Cause all warnings to always be triggered.
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             curve = load_ascii_1d(
                 filepath,
                 q_col=0, i_col=1, err_col=2,
@@ -158,9 +158,9 @@ class TestLoadAscii1D:
             # if we handle err_series.dropna() separately or if err_col is None.
             # The current implementation drops rows if ANY of q, I, or err (if specified) are NaN after coercion.
 
-            assert len(w) > 0 # At least one warning should be issued
-            assert any("Non-numeric values found" in str(warn.message) for warn in w)
-            assert any("rows were dropped due to NaNs" in str(warn.message) for warn in w)
+        assert len(caplog.records) > 0 # At least one warning should be issued
+        assert any("Non-numeric values found" in r.message for r in caplog.records)
+        assert any("rows were dropped due to NaNs" in r.message for r in caplog.records)
 
         # The exact data depends on how pandas handles mixed types and how we drop NaNs.
         # With current implementation (dropna on each series before intersection):

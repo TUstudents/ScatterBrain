@@ -5,6 +5,7 @@ Plotting and visualization utilities for the ScatterBrain library.
 This module provides functions to generate common plots used in SAXS/WAXS analysis.
 """
 
+import logging
 from typing import Optional, Tuple, Any, Union, List, Dict
 
 import numpy as np
@@ -13,10 +14,8 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from .core import ScatteringCurve1D
-# Analysis results types might be imported if we define specific result objects later
-# from ..analysis.guinier import GuinierResultType ( hypothetical )
-import warnings
-# Define the type for the curves parameter
+
+logger = logging.getLogger(__name__)
 
 
 def plot_iq(
@@ -88,7 +87,7 @@ def plot_iq(
         if labels is not None and isinstance(labels, list) and len(labels) == len(curves_list):
             labels_list = labels
         elif labels is not None:
-            warnings.warn("Mismatch between number of curves and labels provided. Ignoring labels.", UserWarning)
+            logger.warning("Mismatch between number of curves and labels provided. Ignoring labels.")
             labels_list = None
         else:
             labels_list = None
@@ -96,7 +95,7 @@ def plot_iq(
         raise TypeError("Input 'curves' must be a ScatteringCurve1D object or a list of them.")
 
     if not curves_list:
-        warnings.warn("plot_iq: No curves provided to plot.", UserWarning)
+        logger.warning("plot_iq: No curves provided to plot.")
         # Create an empty plot or raise error? For now, create empty.
         fig, current_ax = plt.subplots()
         if title: current_ax.set_title(title)
@@ -269,9 +268,6 @@ if __name__ == "__main__": # pragma: no cover
     fig3.suptitle("Plotting on Existing Axes")
     plt.show()
 
-    # 4. Test no curves
-    with warnings.catch_warnings(record=True) as w_empty:
-        plot_iq([])
-        assert len(w_empty) == 1
-        assert "No curves provided" in str(w_empty[0].message)
+    # 4. Test no curves (warning now goes to logger, not warnings module)
+    plot_iq([])
     plt.show() # Shows an empty plot

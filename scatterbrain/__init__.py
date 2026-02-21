@@ -31,6 +31,8 @@ utils
 Documentation is available at [Link to your documentation when ready]
 """
 
+import logging
+
 # Version of the scatterbrain package
 try:
     from importlib.metadata import version, PackageNotFoundError
@@ -61,8 +63,34 @@ __all__ = [
     "visualization",
     "utils",
     "__version__",
-    # Add specific classes/functions here if re-exported, e.g. "ScatteringCurve1D"
+    "configure_logging",
 ]
 
-# Optional: A simple print statement during development for feedback
-# print(f"ScatterBrain package (version {__version__}) initialized.")
+
+def configure_logging(
+    level: int = logging.DEBUG,
+    handler: logging.Handler = None,
+) -> None:
+    """Enable scatterbrain log output. Call once at application startup.
+
+    By default the scatterbrain logger has a NullHandler attached, which
+    silences all output. Call this function to route log records to a
+    stream (or any other handler).
+
+    Parameters
+    ----------
+    level : int, optional
+        Logging level to set on the scatterbrain logger. Default is
+        ``logging.DEBUG`` (all messages).
+    handler : logging.Handler, optional
+        A pre-configured handler to attach. If None (default), a
+        ``StreamHandler`` with a timestamped formatter is created and used.
+    """
+    logger = logging.getLogger("scatterbrain")
+    if handler is None:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+    logger.addHandler(handler)
+    logger.setLevel(level)

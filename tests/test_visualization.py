@@ -5,6 +5,7 @@ Unit tests for the scatterbrain.visualization module.
 import matplotlib
 matplotlib.use('Agg')  # Set non-interactive backend before importing pyplot
 
+import logging
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
@@ -181,13 +182,11 @@ class TestPlotIQ:
         assert len(caps) > 0
         assert caps[0].get_markersize() == 2 * custom_kwargs['capsize']  # Account for internal scaling
 
-    def test_plot_empty_curve_list(self):
+    def test_plot_empty_curve_list(self, caplog):
         """Test plotting an empty list of curves."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             fig, ax = plot_iq([])
-            assert len(w) == 1
-            assert "No curves provided" in str(w[0].message)
+        assert any("No curves provided" in r.message for r in caplog.records)
         assert isinstance(fig, Figure)
         assert isinstance(ax, Axes)
         assert len(ax.lines) == 0 # No lines plotted
@@ -200,15 +199,13 @@ class TestPlotIQ:
         with pytest.raises(TypeError, match="Input 'curves' must be a ScatteringCurve1D object or a list of them."):
             plot_iq([1, 2, 3]) # List of non-ScatteringCurve1D objects
 
-    def test_mismatched_labels_warning(self, sample_curve1: ScatteringCurve1D, sample_curve2_no_error: ScatteringCurve1D):
+    def test_mismatched_labels_warning(self, sample_curve1: ScatteringCurve1D, sample_curve2_no_error: ScatteringCurve1D, caplog):
         """Test warning for mismatched number of labels and curves."""
         curves = [sample_curve1, sample_curve2_no_error]
         labels_too_few = ["Only one label"]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             fig, ax = plot_iq(curves, labels=labels_too_few)
-            assert len(w) == 1
-            assert "Mismatch between number of curves and labels" in str(w[0].message)
+        assert any("Mismatch between number of curves and labels" in r.message for r in caplog.records)
         # Legend should use default labels in this case
         legend_texts = [text.get_text() for text in ax.get_legend().get_texts()]
         assert "sample1.dat" in legend_texts # Default from metadata

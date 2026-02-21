@@ -3,12 +3,15 @@
 Porod analysis functions for SAXS data.
 """
 
+import logging
 from typing import Optional, Tuple, Dict, Any
 import numpy as np
 from scipy.stats import linregress
-import warnings
 
 from ..core import ScatteringCurve1D
+from ..utils import AnalysisError
+
+logger = logging.getLogger(__name__)
 
 
 def porod_analysis(
@@ -77,7 +80,11 @@ def porod_analysis(
         - 'q_fit_max': Maximum q value used in the analysis.
         - 'num_points_fit': Number of points used.
         - 'method': Description of the method used.
-        Returns None if analysis cannot be performed.
+        Returns None if analysis cannot be performed due to a data-driven condition
+        (e.g., insufficient data points, no positive values). A WARNING-level log
+        message is emitted describing the reason. Raises
+        :class:`~scatterbrain.utils.AnalysisError` for programming errors such as
+        passing an object of the wrong type.
 
     Notes
     -----
@@ -92,21 +99,21 @@ def porod_analysis(
       only returns Kp.
     """
     if not isinstance(curve, ScatteringCurve1D):
-        raise TypeError("Input 'curve' must be a ScatteringCurve1D object.")
+        raise AnalysisError("Input 'curve' must be a ScatteringCurve1D object.")
 
     # --- Data preparation ---
     valid_mask = (curve.intensity > 0) & (curve.q > 0) # Need q > 0 for log(q)
     if not np.any(valid_mask):
-        warnings.warn("Porod analysis: No positive intensity and q values found.", UserWarning)
+        logger.warning("Porod analysis: No positive intensity and q values found.")
         return None
 
     q_data = curve.q[valid_mask]
     i_data = curve.intensity[valid_mask]
 
     if len(q_data) < min_points:
-        warnings.warn(
-            f"Porod analysis: Insufficient data points ({len(q_data)} after filtering) "
-            f"for analysis (min_points={min_points}).", UserWarning
+        logger.warning(
+            "Porod analysis: Insufficient data points (%d after filtering) for analysis (min_points=%d).",
+            len(q_data), min_points,
         )
         return None
 
@@ -121,7 +128,7 @@ def porod_analysis(
         if num_points_to_take < min_points and len(q_data) >= min_points:
              num_points_to_take = min_points # Ensure at least min_points if available overall
         elif num_points_to_take < min_points: # Not enough points even overall
-            warnings.warn(f"Porod analysis: Not enough points for auto q-range based on q_fraction_high.", UserWarning)
+            logger.warning("Porod analysis: Not enough points for auto q-range based on q_fraction_high.")
             return None
 
         q_fit_min_val = q_data[-num_points_to_take] # Start from high-q end
@@ -132,10 +139,9 @@ def porod_analysis(
     fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
 
     if len(fit_indices) < min_points:
-        warnings.warn(
-            f"Porod analysis: Selected q-range resulted in {len(fit_indices)} points, "
-            f"which is less than min_points={min_points}. Range: {method_str_range}",
-            UserWarning
+        logger.warning(
+            "Porod analysis: Selected q-range resulted in %d points, which is less than min_points=%d. Range: %s",
+            len(fit_indices), min_points, method_str_range,
         )
         return None
 
@@ -161,7 +167,7 @@ def porod_analysis(
             stderr_slope = regression_result.stderr
             stderr_intercept = regression_result.intercept_stderr
         except ValueError: # pragma: no cover
-            warnings.warn("Porod analysis (log-log fit): ValueError during linear regression.", UserWarning)
+            logger.warning("Porod analysis (log-log fit): ValueError during linear regression.")
             return None
 
         porod_exponent_n = -slope
@@ -193,7 +199,7 @@ def porod_analysis(
 
     else: # Calculate average Kp using expected_exponent
         if expected_exponent is None:
-            warnings.warn("Porod analysis: 'expected_exponent' must be provided if 'fit_log_log' is False.", UserWarning)
+            logger.warning("Porod analysis: 'expected_exponent' must be provided if 'fit_log_log' is False.")
             return None
 
         kp_values = i_fit * (q_fit ** expected_exponent)

@@ -2,12 +2,14 @@
 """
 Unit tests for the scatterbrain.analysis subpackage.
 """
+import logging
 import pytest
 import numpy as np
 import warnings
 
 from scatterbrain.core import ScatteringCurve1D
 from scatterbrain.analysis import guinier_fit, porod_analysis
+from scatterbrain.utils import AnalysisError
 
 # --- Helper function to generate ideal Guinier data ---
 def generate_guinier_data(rg: float, i0: float, q_values: np.ndarray, noise_level: float = 0.0) -> ScatteringCurve1D:
@@ -158,53 +160,49 @@ class TestGuinierFit:
 
     # --- Error Handling Tests ---
 
-    def test_positive_slope_warning(self, flat_curve: ScatteringCurve1D):
+    def test_positive_slope_warning(self, flat_curve: ScatteringCurve1D, caplog):
         """Test handling of data yielding positive Guinier slope.
-        
+
         Validates:
         - NaN results for invalid fit
         - Appropriate warning generation
         - Correct flagging in fit criteria
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = guinier_fit(flat_curve, q_range=(0.1, 0.5)) # Manual range to ensure fit attempt
 
-            assert results is not None
-            assert np.isnan(results["Rg"])
-            assert np.isnan(results["I0"])
-            assert results["slope"] >= 0 # or very close to 0
-            assert any("non-negative slope" in str(warn.message) for warn in w)
-            assert "(Warning: Positive Slope)" in results["valid_guinier_range_criteria"]
+        assert results is not None
+        assert np.isnan(results["Rg"])
+        assert np.isnan(results["I0"])
+        assert results["slope"] >= 0 # or very close to 0
+        assert any("non-negative slope" in r.message for r in caplog.records)
+        assert "(Warning: Positive Slope)" in results["valid_guinier_range_criteria"]
 
 
-    def test_insufficient_points_initial(self, very_few_points_curve: ScatteringCurve1D):
+    def test_insufficient_points_initial(self, very_few_points_curve: ScatteringCurve1D, caplog):
         """Test case with too few points overall."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = guinier_fit(very_few_points_curve, min_points=5)
-            assert results is None
-            assert any("Insufficient data points" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("Insufficient data points" in r.message for r in caplog.records)
 
-    def test_insufficient_points_after_q_range_selection(self, ideal_guinier_curve: ScatteringCurve1D):
+    def test_insufficient_points_after_q_range_selection(self, ideal_guinier_curve: ScatteringCurve1D, caplog):
         """Test when q-range selection results in too few points."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             # Select a q_range that will contain very few points from the ideal curve
             results = guinier_fit(ideal_guinier_curve, q_range=(0.001, 0.005), min_points=5)
-            assert results is None
-            assert any("Selected q-range resulted in" in str(warn.message) and "less than min_points" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("Selected q-range resulted in" in r.message and "less than min_points" in r.message for r in caplog.records)
 
-    def test_no_positive_intensity(self):
+    def test_no_positive_intensity(self, caplog):
         """Test curve with no positive intensity values."""
         q = np.array([0.1, 0.2, 0.3])
         intensity = np.array([-1.0, -0.5, 0.0])
         curve = ScatteringCurve1D(q, intensity)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = guinier_fit(curve)
-            assert results is None
-            assert any("No positive intensity values" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("No positive intensity values" in r.message for r in caplog.records)
 
     def test_qrg_limits_effect(self, ideal_guinier_curve: ScatteringCurve1D):
         """Test the effect of qRg_limit_min and qRg_limit_max."""
@@ -233,7 +231,7 @@ class TestGuinierFit:
         assert np.isclose(results_max_only["q_fit_min"], ideal_guinier_curve.q.min())
         assert np.isclose(results_max_only["q_fit_max"], 0.2, rtol=1e-1)
     
-    def test_auto_q_selection_fallback_positive_slope(self):
+    def test_auto_q_selection_fallback_positive_slope(self, caplog):
         """Test auto q-selection fallback when initial fit has positive slope."""
         # Create data that will definitely have positive slope initially
         q = np.linspace(0.01, 0.5, 50)
@@ -243,32 +241,27 @@ class TestGuinierFit:
         intensity[:5] = intensity[0] * np.exp(np.linspace(0.0, 1.0, 5))  # Exponential upturn
         curve_mod = ScatteringCurve1D(q, intensity)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            results = guinier_fit(curve_mod, 
-                                auto_q_selection_fraction=0.05,  # Use very few points initially
-                                min_points=3)
-            
-            assert results is not None
-            warning_messages = [str(warn.message) for warn in w]
-            # Print warnings for debugging
-            print("Warning messages:", warning_messages)
-            
-            assert any("non-negative slope" in msg for msg in warning_messages), "No positive slope warning found"
-            assert "Fallback" in results["valid_guinier_range_criteria"], "No fallback mentioned in criteria"
-            assert not np.isnan(results["Rg"]), "Rg should not be NaN after fallback"
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
+            results = guinier_fit(curve_mod,
+                                  auto_q_selection_fraction=0.05,  # Use very few points initially
+                                  min_points=3)
+
+        assert results is not None
+        assert any("non-negative slope" in r.message for r in caplog.records), "No positive slope warning found"
+        assert "Fallback" in results["valid_guinier_range_criteria"], "No fallback mentioned in criteria"
+        assert not np.isnan(results["Rg"]), "Rg should not be NaN after fallback"
 
 
     # --- Input Validation Tests ---
 
     def test_invalid_input_type(self):
         """Test type validation for input curve.
-        
+
         Validates:
-        - TypeError for non-ScatteringCurve1D input
+        - AnalysisError for non-ScatteringCurve1D input
         - Descriptive error message
         """
-        with pytest.raises(TypeError, match="Input 'curve' must be a ScatteringCurve1D object."):
+        with pytest.raises(AnalysisError, match="Input 'curve' must be a ScatteringCurve1D object."):
             guinier_fit("not_a_curve")
             
 # --- Test Cases for porod_analysis ---
@@ -334,51 +327,49 @@ class TestPorodAnalysis:
             UserWarning
         )
 
-    def test_insufficient_points_porod(self, very_few_points_curve: ScatteringCurve1D):
+    def test_insufficient_points_porod(self, very_few_points_curve: ScatteringCurve1D, caplog):
         """Test Porod analysis with too few points."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = porod_analysis(very_few_points_curve, min_points=5)
-            assert results is None
-            assert any("Insufficient data points" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("Insufficient data points" in r.message for r in caplog.records)
 
-    def test_q_range_yields_too_few_points_porod(self, ideal_porod_curve_n4: ScatteringCurve1D):
+    def test_q_range_yields_too_few_points_porod(self, ideal_porod_curve_n4: ScatteringCurve1D, caplog):
         """Test when selected q-range for Porod has too few points."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = porod_analysis(ideal_porod_curve_n4, q_range=(8.0, 9.0), min_points=10) # This range has <10 pts
-            assert results is None
-            assert any("Selected q-range resulted in" in str(warn.message) and "less than min_points" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("Selected q-range resulted in" in r.message and "less than min_points" in r.message for r in caplog.records)
 
-    def test_no_positive_intensity_or_q_porod(self):
+    def test_no_positive_intensity_or_q_porod(self, caplog):
         """Test Porod with no valid (I>0, q>0) data."""
         q_neg = np.array([-0.1, -0.2, -0.3])
         i_pos = np.array([1.0, 0.5, 0.2])
         curve_neg_q = ScatteringCurve1D(q_neg, i_pos)
 
-        with warnings.catch_warnings(record=True) as w:
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = porod_analysis(curve_neg_q)
-            assert results is None
-            assert any("No positive intensity and q values found" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("No positive intensity and q values found" in r.message for r in caplog.records)
 
+        caplog.clear()
         q_pos = np.array([0.1, 0.2, 0.3])
         i_neg = np.array([-1.0, -0.5, -0.2])
         curve_neg_i = ScatteringCurve1D(q_pos, i_neg)
-        with warnings.catch_warnings(record=True) as w:
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = porod_analysis(curve_neg_i)
-            assert results is None
-            assert any("No positive intensity and q values found" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("No positive intensity and q values found" in r.message for r in caplog.records)
 
 
-    def test_average_kp_mode_no_expected_exponent(self, ideal_porod_curve_n4: ScatteringCurve1D):
+    def test_average_kp_mode_no_expected_exponent(self, ideal_porod_curve_n4: ScatteringCurve1D, caplog):
         """Test average Kp mode if expected_exponent is not provided."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = porod_analysis(ideal_porod_curve_n4, fit_log_log=False, expected_exponent=None)
-            assert results is None
-            assert any("'expected_exponent' must be provided if 'fit_log_log' is False" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("'expected_exponent' must be provided if 'fit_log_log' is False" in r.message for r in caplog.records)
 
     def test_invalid_input_type_porod(self):
         """Test passing an invalid type for the curve argument to Porod."""
-        with pytest.raises(TypeError, match="Input 'curve' must be a ScatteringCurve1D object."):
+        with pytest.raises(AnalysisError, match="Input 'curve' must be a ScatteringCurve1D object."):
             porod_analysis("not_a_curve")

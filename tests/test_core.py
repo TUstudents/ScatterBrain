@@ -8,7 +8,7 @@ import re
 import numpy as np
 import copy
 from scatterbrain.core import ScatteringCurve1D, QUnit, IntensityUnit
-from scatterbrain.utils import Q_ANGSTROM_INV, Q_NANOMETER_INV # For explicit unit consts
+from scatterbrain.utils import Q_ANGSTROM_INV, Q_NANOMETER_INV, ProcessingError
 
 # --- Fixtures ---
 
@@ -388,7 +388,7 @@ class TestScatteringCurve1DMethods:
 
     def test_convert_q_unit_unsupported_unit(self, default_curve: ScatteringCurve1D):
         """Test conversion with an unsupported target unit."""
-        with pytest.raises(ValueError, match=re.escape("Failed to convert q units: Unsupported target_unit 'm^-1'")):
+        with pytest.raises(ProcessingError, match=re.escape("Failed to convert q units: Unsupported target_unit 'm^-1'")):
             default_curve.convert_q_unit("m^-1", inplace=False)
 
         # Ensure original curve is unchanged after failed conversion attempt
