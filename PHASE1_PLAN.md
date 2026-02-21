@@ -49,10 +49,10 @@ All Phase 1 tasks audited against the live codebase. The test suite runs
 
 | Task | Component | Status | Notes |
 |------|-----------|--------|-------|
-| 1.11 | `plot_fit` tight_layout warning | Warning | 5 `UserWarning` from matplotlib about incompatible axes |
-| 1.12 | Typed analysis return types | Missing | `guinier_fit` and `porod_analysis` return plain `dict`; no IDE support |
-| 1.13 | Notebook smoke test in CI | Missing | `notebooks/01_basic_workflow.ipynb` is not executed in CI |
-| 1.14 | Dead code in `__init__.py` | Cleanup | Python <3.8 `ImportError` fallback (lines 42-47) is unreachable on >=3.10; pulls coverage to 65% |
+| 1.11 | `plot_fit` tight_layout warning | Done | `constrained_layout=True` at figure creation; `tight_layout` guarded by `fig.get_constrained_layout()` |
+| 1.12 | Typed analysis return types | Done | `GuinierResult` and `PorodResult` TypedDicts; exported from `scatterbrain.analysis` |
+| 1.13 | Notebook smoke test in CI | Done | `nbmake>=1.4` in dev deps; `uv run pytest --nbmake` step added to CI with `MPLBACKEND=Agg` |
+| 1.14 | Dead code in `__init__.py` | Done | Outer `except ImportError` removed; `__init__.py` coverage raised from 65% to ~85% |
 
 ---
 
@@ -321,11 +321,11 @@ Coverage on `__init__.py` should rise from 65% to ~85%+ after removal.
 | `pytest` >= 150 passing, 0 failing | Done: 183 passing |
 | Test coverage >= 80% on `scatterbrain/` (excluding `reduction/` placeholder) | Done: 93% total |
 | GitHub Actions CI on Python 3.10, 3.11, 3.12 | Done    |
-| `README.md` installation section uses `uv` | Unverified |
-| `plot_fit` produces no `UserWarning` | Pending: Task 1.11 |
-| Typed return types for `guinier_fit` / `porod_analysis` | Pending: Task 1.12 |
-| Notebook executed in CI | Pending: Task 1.13 |
-| Dead Python <3.8 code removed from `__init__.py` | Pending: Task 1.14 |
+| `README.md` installation section uses `uv` | Done    |
+| `plot_fit` produces no `UserWarning` | Done: Task 1.11 |
+| Typed return types for `guinier_fit` / `porod_analysis` | Done: Task 1.12 |
+| Notebook executed in CI | Done: Task 1.13 |
+| Dead Python <3.8 code removed from `__init__.py` | Done: Task 1.14 |
 
 ---
 

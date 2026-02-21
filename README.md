@@ -48,19 +48,35 @@
 
 ### From source (development)
 
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
 ```bash
 git clone https://github.com/TUstudents/ScatterBrain.git
 cd ScatterBrain
-pip install -e ".[dev]"
+uv sync --all-extras
+```
+
+Run commands inside the managed environment with `uv run`:
+
+```bash
+uv run python -c "import scatterbrain; print(scatterbrain.__version__)"
+```
+
+Or activate the virtual environment directly:
+
+```bash
+source .venv/bin/activate
 ```
 
 ### Stable release (when published to PyPI)
 
 ```bash
 pip install scatterbrain
+# or, if using uv:
+uv add scatterbrain
 ```
 
-**Requirements:** Python ≥ 3.10, numpy, scipy, matplotlib, pandas.
+**Requirements:** Python >= 3.10, numpy, scipy, matplotlib, pandas.
 
 ## Quick Start
 
