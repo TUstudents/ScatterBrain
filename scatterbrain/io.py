@@ -249,4 +249,92 @@ def load_ascii_1d(
         intensity_unit=intensity_unit
     )
 
-# Future: Add functions like save_ascii_1d, load_hdf5_1d, load_rigaku_ras, etc.
+
+def save_ascii_1d(
+    curve: ScatteringCurve1D,
+    filepath: Union[str, pathlib.Path],
+    include_error: bool = True,
+    delimiter: str = "\t",
+    header: Optional[str] = None,
+    fmt: str = "%.6e",
+) -> None:
+    """
+    Save a ScatteringCurve1D object to an ASCII text file.
+
+    Writes columns ``q``, ``intensity``, and optionally ``error`` (when
+    ``include_error=True`` and ``curve.error`` is not ``None``) separated by
+    *delimiter*.  An auto-generated comment header is prepended; any
+    user-supplied *header* string is included after the auto-header.
+
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The curve to save.
+    filepath : str or pathlib.Path
+        Destination file path.  The parent directory must already exist.
+    include_error : bool, optional
+        Write the error column when ``curve.error`` is available.
+        Default is True.
+    delimiter : str, optional
+        Column separator.  Default is tab (``"\\t"``).
+    header : str or None, optional
+        Extra header text appended after the auto-generated lines.
+        Each line will be prefixed with ``#`` if it is not already.
+    fmt : str, optional
+        Printf-style format string for numeric values.  Default ``"%.6e"``.
+
+    Raises
+    ------
+    ValueError
+        If the parent directory of *filepath* does not exist.
+    TypeError
+        If *curve* is not a ScatteringCurve1D.
+    """
+    if not isinstance(curve, ScatteringCurve1D):
+        raise TypeError("'curve' must be a ScatteringCurve1D object.")
+
+    file_path_obj = pathlib.Path(filepath)
+    if not file_path_obj.parent.exists():
+        raise ValueError(
+            f"Parent directory does not exist: {file_path_obj.parent}"
+        )
+
+    write_error = include_error and curve.error is not None
+
+    # Build header lines
+    col_names = ["q", "intensity"] + (["error"] if write_error else [])
+    units = [curve.q_unit, curve.intensity_unit] + ([curve.intensity_unit] if write_error else [])
+    auto_header_lines = [
+        "Saved by ScatterBrain",
+        f"Columns: {delimiter.join(col_names)}",
+        f"Units  : {delimiter.join(units)}",
+    ]
+    if "filename" in curve.metadata:
+        auto_header_lines.append(f"Source : {curve.metadata['filename']}")
+
+    all_header_lines = [f"# {ln}" for ln in auto_header_lines]
+
+    if header is not None:
+        for ln in header.splitlines():
+            all_header_lines.append(ln if ln.startswith("#") else f"# {ln}")
+
+    header_str = "\n".join(all_header_lines)
+
+    # Assemble data array
+    columns = [curve.q, curve.intensity]
+    if write_error:
+        columns.append(curve.error)
+    data = np.column_stack(columns)
+
+    np.savetxt(
+        file_path_obj,
+        data,
+        delimiter=delimiter,
+        header=header_str,
+        comments="",   # header already has '#' prefixes
+        fmt=fmt,
+    )
+    logger.debug("Saved %d-point curve to %s.", len(curve.q), file_path_obj)
+
+
+# Future: load_hdf5_1d, load_rigaku_ras, etc.

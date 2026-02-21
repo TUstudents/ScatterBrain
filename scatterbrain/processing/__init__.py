@@ -1,3 +1,8 @@
 # scatterbrain/processing/__init__.py
-# This file marks the 'processing' directory as a Python package.
-# It will contain modules for 1D data processing tasks.
+"""
+1D data processing utilities for ScatterBrain.
+"""
+
+from .background import subtract_background
+
+__all__ = ["subtract_background"]

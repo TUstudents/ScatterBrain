@@ -187,53 +187,384 @@ def plot_iq(
     return fig, current_ax
 
 
-# Placeholder for Guinier plot
 def plot_guinier(
     curve: ScatteringCurve1D,
     guinier_result: Optional[Dict[str, Any]] = None,
+    q_range_highlight: Optional[Tuple[float, float]] = None,
     ax: Optional[Axes] = None,
     title: Optional[str] = "Guinier Plot",
-    **plot_kwargs: Any
+    **plot_kwargs: Any,
 ) -> Tuple[Figure, Axes]:
     """
-    Generates a Guinier plot (ln(I) vs q^2).
-    (Placeholder - to be implemented)
-    """
-    raise NotImplementedError("plot_guinier is not yet implemented.")
+    Generate a Guinier plot: ln(I(q)) vs q².
 
-# Placeholder for Porod plot
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The scattering data to plot.  Points with I(q) ≤ 0 are excluded.
+    guinier_result : dict, optional
+        Output of :func:`scatterbrain.analysis.guinier.guinier_fit`.
+        When provided, the fitted line is overlaid and Rg / I(0) are
+        annotated on the axes.
+    q_range_highlight : tuple of float, optional
+        ``(q_min, q_max)`` region to shade as the Guinier fit region.
+        Overridden by values in *guinier_result* if available.
+    ax : Axes, optional
+        Existing matplotlib Axes to draw on.  A new figure is created
+        when *ax* is None (default).
+    title : str, optional
+        Plot title.  Default ``"Guinier Plot"``.
+    **plot_kwargs
+        Passed to the data ``ax.errorbar`` / ``ax.plot`` call.
+
+    Returns
+    -------
+    tuple of (Figure, Axes)
+    """
+    if ax is None:
+        fig, current_ax = plt.subplots(figsize=(7, 5))
+    else:
+        current_ax = ax
+        fig = current_ax.get_figure()
+
+    # Filter to positive intensities
+    mask = curve.intensity > 0
+    q_pos = curve.q[mask]
+    i_pos = curve.intensity[mask]
+    q2 = q_pos ** 2
+    ln_i = np.log(i_pos)
+
+    # Error propagation: σ_lnI = σ_I / I
+    if curve.error is not None:
+        err_pos = curve.error[mask]
+        ln_i_err = np.abs(err_pos / i_pos)
+        current_ax.errorbar(
+            q2, ln_i, yerr=ln_i_err,
+            fmt=".", markersize=3, capsize=2, alpha=0.6, elinewidth=0.8,
+            label=curve.metadata.get("filename", "Data"),
+            **plot_kwargs,
+        )
+    else:
+        current_ax.plot(
+            q2, ln_i,
+            ".", markersize=3,
+            label=curve.metadata.get("filename", "Data"),
+            **plot_kwargs,
+        )
+
+    # Overlay fitted line
+    if guinier_result is not None and not np.isnan(guinier_result.get("Rg", np.nan)):
+        slope = guinier_result["slope"]
+        intercept = guinier_result["intercept"]
+        q_min_fit = guinier_result.get("q_fit_min", q_pos.min())
+        q_max_fit = guinier_result.get("q_fit_max", q_pos.max())
+
+        q2_fit = np.linspace(q_min_fit ** 2, q_max_fit ** 2, 100)
+        current_ax.plot(
+            q2_fit, slope * q2_fit + intercept,
+            "-", color="tab:red", linewidth=1.5, label="Guinier fit",
+        )
+
+        rg = guinier_result["Rg"]
+        rg_err = guinier_result.get("Rg_err", np.nan)
+        i0 = guinier_result["I0"]
+        annotation = (
+            f"$R_g$ = {rg:.3g}"
+            + (f" ± {rg_err:.2g}" if not np.isnan(rg_err) else "")
+            + f" {curve.q_unit}$^{{-1}}$\n"
+            f"$I(0)$ = {i0:.3g} {curve.intensity_unit}"
+        )
+        current_ax.annotate(
+            annotation,
+            xy=(0.98, 0.98), xycoords="axes fraction",
+            ha="right", va="top",
+            fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
+        )
+
+        # Use fit q-range for highlight if not explicitly given
+        if q_range_highlight is None:
+            q_range_highlight = (q_min_fit, q_max_fit)
+
+    # Shade the Guinier region
+    if q_range_highlight is not None:
+        current_ax.axvspan(
+            q_range_highlight[0] ** 2, q_range_highlight[1] ** 2,
+            alpha=0.12, color="tab:green", label="Fit region",
+        )
+
+    current_ax.set_xlabel(f"q² ({curve.q_unit})²")
+    current_ax.set_ylabel("ln(I(q))")
+    if title:
+        current_ax.set_title(title)
+    current_ax.legend(fontsize=8)
+    current_ax.grid(True, linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    return fig, current_ax
+
+
 def plot_porod(
     curve: ScatteringCurve1D,
     porod_result: Optional[Dict[str, Any]] = None,
-    plot_type: str = "Iq4_vs_q", # or "logI_vs_logq"
+    plot_type: str = "Iq4_vs_q",
+    q_range_highlight: Optional[Tuple[float, float]] = None,
     ax: Optional[Axes] = None,
     title: Optional[str] = "Porod Plot",
-    **plot_kwargs: Any
+    **plot_kwargs: Any,
 ) -> Tuple[Figure, Axes]:
     """
-    Generates a Porod plot (e.g., I*q^4 vs q or log(I) vs log(q)).
-    (Placeholder - to be implemented)
+    Generate a Porod plot.
+
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The scattering data.  Points with I(q) ≤ 0 or q ≤ 0 are excluded.
+    porod_result : dict, optional
+        Output of :func:`scatterbrain.analysis.porod.porod_analysis`.
+        When provided and ``plot_type="logI_vs_logq"``, the fitted line is
+        overlaid and the Porod exponent / constant are annotated.
+    plot_type : {"Iq4_vs_q", "logI_vs_logq"}, optional
+        ``"Iq4_vs_q"`` (default): I(q)·q⁴ vs q on linear axes; a flat
+        plateau signals Porod behaviour.
+        ``"logI_vs_logq"``: log₁₀(I) vs log₁₀(q); slope ≈ −4 for smooth
+        3-D interfaces.
+    q_range_highlight : tuple of float, optional
+        ``(q_min, q_max)`` region to shade.  Falls back to values in
+        *porod_result* when available.
+    ax : Axes, optional
+        Existing axes to draw on.
+    title : str, optional
+        Plot title.  Default ``"Porod Plot"``.
+    **plot_kwargs
+        Passed to the data plot call.
+
+    Returns
+    -------
+    tuple of (Figure, Axes)
+
+    Raises
+    ------
+    ValueError
+        If *plot_type* is not one of the accepted strings.
     """
-    raise NotImplementedError("plot_porod is not yet implemented.")
+    if plot_type not in ("Iq4_vs_q", "logI_vs_logq"):
+        raise ValueError(
+            f"plot_type must be 'Iq4_vs_q' or 'logI_vs_logq', got '{plot_type}'."
+        )
+
+    if ax is None:
+        fig, current_ax = plt.subplots(figsize=(7, 5))
+    else:
+        current_ax = ax
+        fig = current_ax.get_figure()
+
+    # Filter valid points
+    mask = (curve.intensity > 0) & (curve.q > 0)
+    q_pos = curve.q[mask]
+    i_pos = curve.intensity[mask]
+
+    if plot_type == "Iq4_vs_q":
+        x_data = q_pos
+        y_data = i_pos * q_pos ** 4
+        xlabel = f"q ({curve.q_unit})"
+        ylabel = f"I(q)·q⁴ ({curve.intensity_unit}·{curve.q_unit}⁴)"
+        current_ax.plot(x_data, y_data, ".", markersize=3,
+                        label=curve.metadata.get("filename", "Data"), **plot_kwargs)
+    else:  # logI_vs_logq
+        x_data = np.log10(q_pos)
+        y_data = np.log10(i_pos)
+        xlabel = f"log₁₀(q / {curve.q_unit})"
+        ylabel = f"log₁₀(I / {curve.intensity_unit})"
+        current_ax.plot(x_data, y_data, ".", markersize=3,
+                        label=curve.metadata.get("filename", "Data"), **plot_kwargs)
+
+        # Overlay fitted line from porod_result
+        if porod_result is not None:
+            q_min_fit = porod_result.get("q_fit_min", q_pos.min())
+            q_max_fit = porod_result.get("q_fit_max", q_pos.max())
+            log_q_fit = np.linspace(np.log10(q_min_fit), np.log10(q_max_fit), 100)
+            intercept = porod_result.get("log_kp_intercept")
+            exponent = porod_result.get("porod_exponent")
+            if intercept is not None and exponent is not None:
+                log_i_fit = intercept - exponent * log_q_fit
+                current_ax.plot(
+                    log_q_fit, log_i_fit,
+                    "-", color="tab:red", linewidth=1.5, label="Porod fit",
+                )
+            if q_range_highlight is None:
+                q_range_highlight = (q_min_fit, q_max_fit)
+
+    # Annotate Porod parameters
+    if porod_result is not None:
+        exp = porod_result.get("porod_exponent")
+        exp_err = porod_result.get("porod_exponent_err", np.nan)
+        kp = porod_result.get("porod_constant_kp")
+        parts = []
+        if exp is not None:
+            parts.append(
+                f"n = {exp:.3g}"
+                + (f" ± {exp_err:.2g}" if exp_err is not None and not np.isnan(exp_err) else "")
+            )
+        if kp is not None:
+            parts.append(f"Kp = {kp:.3g}")
+        if parts:
+            current_ax.annotate(
+                "\n".join(parts),
+                xy=(0.02, 0.02), xycoords="axes fraction",
+                ha="left", va="bottom", fontsize=9,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
+            )
+
+    # Shade analysis region
+    if q_range_highlight is not None:
+        if plot_type == "Iq4_vs_q":
+            current_ax.axvspan(
+                q_range_highlight[0], q_range_highlight[1],
+                alpha=0.12, color="tab:orange", label="Analysis region",
+            )
+        else:
+            current_ax.axvspan(
+                np.log10(q_range_highlight[0]), np.log10(q_range_highlight[1]),
+                alpha=0.12, color="tab:orange", label="Analysis region",
+            )
+
+    current_ax.set_xlabel(xlabel)
+    current_ax.set_ylabel(ylabel)
+    if title:
+        current_ax.set_title(title)
+    current_ax.legend(fontsize=8)
+    current_ax.grid(True, linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    return fig, current_ax
 
 
-# Placeholder for Model Fit plot
 def plot_fit(
     curve: ScatteringCurve1D,
-    fit_result_dict: Dict[str, Any], # Expects output from fit_model
-    q_scale: str = 'log',
-    i_scale: str = 'log',
+    fit_result_dict: Dict[str, Any],
+    q_scale: str = "log",
+    i_scale: str = "log",
     plot_residuals: bool = True,
-    ax_main: Optional[Axes] = None, # For main plot
-    ax_res: Optional[Axes] = None,  # For residuals, if plot_residuals is True
+    ax_main: Optional[Axes] = None,
+    ax_res: Optional[Axes] = None,
     title: Optional[str] = "Model Fit",
-    **plot_kwargs: Any
-) -> Figure: # Returns Figure, Axes arrangement depends on residuals
+    **plot_kwargs: Any,
+) -> Figure:
     """
-    Plots the experimental data, the fitted model, and optionally residuals.
-    (Placeholder - to be implemented)
+    Plot experimental data with a fitted model overlay and optional residuals.
+
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The experimental data.
+    fit_result_dict : dict
+        Output of :func:`scatterbrain.modeling.fitting.fit_model`.
+        Must contain ``"fit_curve"`` (a ScatteringCurve1D) and optionally
+        ``"chi_squared_reduced"`` and ``"fitted_params"``.
+    q_scale : {"log", "linear"}, optional
+        Scale for the q-axis.  Default ``"log"``.
+    i_scale : {"log", "linear"}, optional
+        Scale for the intensity axis.  Default ``"log"``.
+    plot_residuals : bool, optional
+        When True (default) and ``curve.error`` is available, a lower
+        panel showing normalised residuals ``(I_data − I_model) / σ`` is
+        added.  When errors are unavailable only the main panel is shown
+        even if this flag is True.
+    ax_main : Axes, optional
+        Axes for the main data/fit panel.  Created internally when None.
+    ax_res : Axes, optional
+        Axes for the residuals panel.  Created internally when None and
+        residuals are requested.
+    title : str, optional
+        Figure title.  Default ``"Model Fit"``.
+    **plot_kwargs
+        Passed to the experimental data plot call.
+
+    Returns
+    -------
+    Figure
     """
-    raise NotImplementedError("plot_fit is not yet implemented.")
+    fit_curve: ScatteringCurve1D = fit_result_dict["fit_curve"]
+    has_errors = curve.error is not None
+    show_residuals = plot_residuals and has_errors
+
+    # --- Figure / axes setup ---
+    if ax_main is not None:
+        current_ax_main = ax_main
+        fig = current_ax_main.get_figure()
+        current_ax_res = ax_res  # may be None; residuals will be skipped
+    elif show_residuals:
+        fig, (current_ax_main, current_ax_res) = plt.subplots(
+            2, 1, figsize=(7, 7), sharex=True,
+            gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05},
+        )
+    else:
+        fig, current_ax_main = plt.subplots(figsize=(7, 5))
+        current_ax_res = None
+
+    # --- Main panel: data + model ---
+    data_label = curve.metadata.get("filename", "Data")
+    if has_errors:
+        current_ax_main.errorbar(
+            curve.q, curve.intensity, yerr=curve.error,
+            fmt=".", markersize=3, capsize=2, alpha=0.6, elinewidth=0.8,
+            label=data_label, **plot_kwargs,
+        )
+    else:
+        current_ax_main.plot(
+            curve.q, curve.intensity,
+            ".", markersize=3, label=data_label, **plot_kwargs,
+        )
+
+    current_ax_main.plot(
+        fit_curve.q, fit_curve.intensity,
+        "-", color="tab:red", linewidth=1.5, label="Model fit",
+    )
+
+    current_ax_main.set_xscale(q_scale)
+    current_ax_main.set_yscale(i_scale)
+    current_ax_main.set_ylabel(f"Intensity ({curve.intensity_unit})")
+    if not show_residuals:
+        unit_text = curve.q_unit.replace("^", "$^{") + "}$" if curve.q_unit else ""
+        current_ax_main.set_xlabel(f"q ({unit_text})" if unit_text else "q")
+    current_ax_main.legend(fontsize=8)
+    current_ax_main.grid(True, which="both", linestyle="--", alpha=0.4)
+
+    # Parameter annotation
+    fitted = fit_result_dict.get("fitted_params", {})
+    chi2 = fit_result_dict.get("chi_squared_reduced", np.nan)
+    ann_parts = []
+    if not np.isnan(chi2):
+        ann_parts.append(f"χ²_red = {chi2:.3g}")
+    for k, v in fitted.items():
+        ann_parts.append(f"{k} = {v:.4g}")
+    if ann_parts:
+        current_ax_main.annotate(
+            "\n".join(ann_parts),
+            xy=(0.98, 0.98), xycoords="axes fraction",
+            ha="right", va="top", fontsize=8,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
+        )
+
+    if title:
+        fig.suptitle(title, fontsize=11)
+
+    # --- Residuals panel ---
+    if show_residuals and current_ax_res is not None:
+        # Interpolate model onto data q-grid for residual calculation
+        model_i_on_data = np.interp(curve.q, fit_curve.q, fit_curve.intensity)
+        residuals = (curve.intensity - model_i_on_data) / curve.error
+        current_ax_res.axhline(0, color="tab:red", linewidth=1)
+        current_ax_res.plot(curve.q, residuals, ".", markersize=3, alpha=0.7)
+        current_ax_res.set_xscale(q_scale)
+        current_ax_res.set_ylabel("(I−M) / σ")
+        unit_text = curve.q_unit.replace("^", "$^{") + "}$" if curve.q_unit else ""
+        current_ax_res.set_xlabel(f"q ({unit_text})" if unit_text else "q")
+        current_ax_res.grid(True, which="both", linestyle="--", alpha=0.4)
+        current_ax_res.axhline(1, color="gray", linewidth=0.5, linestyle=":")
+        current_ax_res.axhline(-1, color="gray", linewidth=0.5, linestyle=":")
+
+    fig.tight_layout()
+    return fig
 
 
 if __name__ == "__main__": # pragma: no cover

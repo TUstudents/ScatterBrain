@@ -14,7 +14,7 @@ from matplotlib.axes import Axes
 import warnings
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.visualization import plot_iq #, plot_guinier, plot_porod, plot_fit (placeholders)
+from scatterbrain.visualization import plot_iq, plot_guinier, plot_porod, plot_fit
 
 # --- Fixtures for Visualization Tests ---
 
@@ -214,35 +214,154 @@ class TestPlotIQ:
 
 # --- Placeholder tests for other plotting functions (to be implemented later) ---
 @pytest.mark.usefixtures("plt_close_figures")
-class TestPlotGuinierPlaceholder:
-    @pytest.mark.skip(reason="plot_guinier not yet implemented")
-    def test_plot_guinier_runs(self, sample_curve1: ScatteringCurve1D):
-        from scatterbrain.visualization import plot_guinier # Import here to avoid error if not implemented
-        # result_dummy = {"Rg": 1.0, "I0": 100.0, "q_fit_min": 0.1, "q_fit_max":0.2} # Dummy result
-        # fig, ax = plot_guinier(sample_curve1, guinier_result=result_dummy)
-        # assert isinstance(fig, Figure)
-        # assert isinstance(ax, Axes)
-        with pytest.raises(NotImplementedError):
-             plot_guinier(sample_curve1)
+class TestPlotGuinier:
+    """Tests for plot_guinier."""
+
+    def test_returns_fig_axes(self, sample_curve1):
+        fig, ax = plot_guinier(sample_curve1)
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_with_guinier_result(self, sample_curve1):
+        guinier_result = {
+            "Rg": 4.0, "Rg_err": 0.2, "I0": 100.0, "I0_err": 5.0,
+            "slope": -5.3, "intercept": 4.6,
+            "r_value": -0.999, "p_value": 1e-10,
+            "stderr_slope": 0.1, "stderr_intercept": 0.05,
+            "q_fit_min": 0.01, "q_fit_max": 0.15,
+            "num_points_fit": 10,
+            "valid_guinier_range_criteria": "Manual",
+        }
+        fig, ax = plot_guinier(sample_curve1, guinier_result=guinier_result)
+        assert isinstance(fig, Figure)
+
+    def test_with_nan_rg_skips_overlay(self, sample_curve1):
+        guinier_result = {
+            "Rg": float("nan"), "Rg_err": float("nan"),
+            "I0": float("nan"), "I0_err": float("nan"),
+            "slope": 0.1, "intercept": 4.6,
+            "q_fit_min": 0.01, "q_fit_max": 0.15,
+        }
+        # Should not raise even with NaN Rg
+        fig, ax = plot_guinier(sample_curve1, guinier_result=guinier_result)
+        assert isinstance(fig, Figure)
+
+    def test_with_q_range_highlight(self, sample_curve1):
+        fig, ax = plot_guinier(sample_curve1, q_range_highlight=(0.01, 0.1))
+        assert isinstance(fig, Figure)
+
+    def test_curve_without_error(self, sample_curve2_no_error):
+        fig, ax = plot_guinier(sample_curve2_no_error)
+        assert isinstance(fig, Figure)
+
+    def test_on_existing_axes(self, sample_curve1):
+        fig_pre, ax_pre = plt.subplots()
+        fig_ret, ax_ret = plot_guinier(sample_curve1, ax=ax_pre)
+        assert ax_ret is ax_pre
+        assert fig_ret is fig_pre
+
+    def test_custom_title(self, sample_curve1):
+        fig, ax = plot_guinier(sample_curve1, title="My Guinier")
+        assert ax.get_title() == "My Guinier"
 
 
 @pytest.mark.usefixtures("plt_close_figures")
-class TestPlotPorodPlaceholder:
-    @pytest.mark.skip(reason="plot_porod not yet implemented")
-    def test_plot_porod_runs(self, sample_curve1: ScatteringCurve1D):
-        from scatterbrain.visualization import plot_porod
-        with pytest.raises(NotImplementedError):
-            plot_porod(sample_curve1)
+class TestPlotPorod:
+    """Tests for plot_porod."""
+
+    def test_iq4_mode_returns_fig_axes(self, sample_curve1):
+        fig, ax = plot_porod(sample_curve1, plot_type="Iq4_vs_q")
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_loglog_mode_returns_fig_axes(self, sample_curve1):
+        fig, ax = plot_porod(sample_curve1, plot_type="logI_vs_logq")
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_invalid_plot_type_raises(self, sample_curve1):
+        with pytest.raises(ValueError, match="plot_type"):
+            plot_porod(sample_curve1, plot_type="bad_type")
+
+    def test_with_porod_result_loglog(self, sample_curve1):
+        porod_result = {
+            "porod_exponent": 4.0, "porod_exponent_err": 0.05,
+            "porod_constant_kp": 1e4, "porod_constant_kp_err": 200.0,
+            "log_kp_intercept": 4.0, "log_kp_intercept_err": 0.02,
+            "r_value": -0.999,
+            "q_fit_min": 0.3, "q_fit_max": 0.5,
+            "num_points_fit": 8,
+            "method": "Log-log fit",
+        }
+        fig, ax = plot_porod(
+            sample_curve1, porod_result=porod_result, plot_type="logI_vs_logq"
+        )
+        assert isinstance(fig, Figure)
+
+    def test_with_q_range_highlight_iq4(self, sample_curve1):
+        fig, ax = plot_porod(
+            sample_curve1, plot_type="Iq4_vs_q", q_range_highlight=(0.3, 0.5)
+        )
+        assert isinstance(fig, Figure)
+
+    def test_on_existing_axes(self, sample_curve1):
+        fig_pre, ax_pre = plt.subplots()
+        fig_ret, ax_ret = plot_porod(sample_curve1, ax=ax_pre)
+        assert ax_ret is ax_pre
 
 
 @pytest.mark.usefixtures("plt_close_figures")
-class TestPlotFitPlaceholder:
-    @pytest.mark.skip(reason="plot_fit not yet implemented")
-    def test_plot_fit_runs(self, sample_curve1: ScatteringCurve1D):
-        from scatterbrain.visualization import plot_fit
-        # dummy_fit_result = {
-        #     "fit_curve": ScatteringCurve1D(sample_curve1.q, sample_curve1.intensity * 0.9),
-        #     "fitted_params": {}, "chi_squared_reduced": 1.0
-        # }
-        with pytest.raises(NotImplementedError):
-            plot_fit(sample_curve1, fit_result_dict={}) # Dummy dict
+class TestPlotFit:
+    """Tests for plot_fit."""
+
+    @pytest.fixture
+    def fit_result(self, sample_curve1):
+        model_i = sample_curve1.intensity * 0.95 + 2.0
+        fit_curve = ScatteringCurve1D(sample_curve1.q, model_i)
+        return {
+            "fit_curve": fit_curve,
+            "fitted_params": {"scale": 9.5e1, "background": 2.0, "radius": 5.0},
+            "fitted_params_stderr": {"scale": 1.0, "background": 0.1, "radius": 0.2},
+            "chi_squared_reduced": 1.05,
+            "success": True,
+            "message": "Fit successful.",
+            "q_fit_min": sample_curve1.q.min(),
+            "q_fit_max": sample_curve1.q.max(),
+            "num_points_fit": len(sample_curve1),
+        }
+
+    def test_returns_figure(self, sample_curve1, fit_result):
+        fig = plot_fit(sample_curve1, fit_result)
+        assert isinstance(fig, Figure)
+
+    def test_with_residuals(self, sample_curve1, fit_result):
+        fig = plot_fit(sample_curve1, fit_result, plot_residuals=True)
+        assert isinstance(fig, Figure)
+
+    def test_without_residuals(self, sample_curve1, fit_result):
+        fig = plot_fit(sample_curve1, fit_result, plot_residuals=False)
+        assert isinstance(fig, Figure)
+
+    def test_no_error_skips_residuals(self, sample_curve2_no_error, fit_result):
+        # Override fit_curve q to match sample_curve2_no_error
+        model_i = sample_curve2_no_error.intensity * 0.95
+        fit_result["fit_curve"] = ScatteringCurve1D(
+            sample_curve2_no_error.q, model_i
+        )
+        fig = plot_fit(sample_curve2_no_error, fit_result, plot_residuals=True)
+        # No errors → residual panel cannot be shown; should still return Figure
+        assert isinstance(fig, Figure)
+
+    def test_linear_scales(self, sample_curve1, fit_result):
+        fig = plot_fit(
+            sample_curve1, fit_result, q_scale="linear", i_scale="linear"
+        )
+        assert isinstance(fig, Figure)
+
+    def test_on_provided_axes(self, sample_curve1, fit_result):
+        fig_pre, ax_pre = plt.subplots()
+        fig_ret = plot_fit(
+            sample_curve1, fit_result,
+            plot_residuals=False, ax_main=ax_pre,
+        )
+        assert isinstance(fig_ret, Figure)

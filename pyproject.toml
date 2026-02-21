@@ -76,11 +76,12 @@ Repository = "https://github.com/[your_username]/ScatterBrain"
 # Bug Tracker = "https://github.com/[your_username]/ScatterBrain/issues"
 # Documentation = "https://[your_username].github.io/ScatterBrain/" # Or ReadTheDocs URL
 
-[tool.setuptools]
-packages = ["scatterbrain"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scatterbrain*"]
 
 [tool.setuptools.package-data]
-scatterbrain = ["data/*"]
+"scatterbrain" = ["data/*", "examples/data/*"]
 
 # --- Code Quality Tools Configuration ---
 [tool.black]
