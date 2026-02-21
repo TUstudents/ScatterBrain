@@ -6,14 +6,16 @@ This module provides functions for loading scattering data from various file for
 and (eventually) saving processed data or analysis results.
 """
 
+import logging
 import pathlib
-import warnings
 from typing import Optional, Dict, Any, Union, List, Tuple
 
 import numpy as np
 import pandas as pd # Using pandas for robust CSV/text file parsing
 
 from .core import ScatteringCurve1D, QUnit, IntensityUnit
+
+logger = logging.getLogger(__name__)
 
 
 def load_ascii_1d(
@@ -114,10 +116,10 @@ def load_ascii_1d(
                             break
                         header_lines.append(line.strip())
                     except UnicodeDecodeError as ude: # pragma: no cover
-                        warnings.warn(f"Unicode decode error reading header line {i+1} from {filepath} with encoding {encoding}: {ude}. Skipping line for metadata.", UserWarning)
+                        logger.warning("Unicode decode error reading header line %d from %s with encoding %s: %s. Skipping line for metadata.", i + 1, filepath, encoding, ude)
                         header_lines.append(f"UnicodeDecodeError on line {i+1}") # Placeholder
         except Exception as e: # pragma: no cover
-            warnings.warn(f"Could not read header lines from {filepath} for metadata: {e}", UserWarning)
+            logger.warning("Could not read header lines from %s for metadata: %s", filepath, e)
 
 
     # Prepare pandas read_csv arguments
@@ -169,10 +171,10 @@ def load_ascii_1d(
                 nan_rows = numeric_series[numeric_series.isnull()].index.tolist()
                 # Show first few problematic rows for better error message
                 problem_snippet = series.iloc[nan_rows[:min(3, len(nan_rows))]].to_string(index=False)
-                warnings.warn(
-                    f"Non-numeric values found in {col_desc} column ('{col_id}') and converted to NaN. "
-                    f"Problematic rows (first few):\n{problem_snippet}",
-                    UserWarning
+                logger.warning(
+                    "Non-numeric values found in %s column ('%s') and converted to NaN. "
+                    "Problematic rows (first few):\n%s",
+                    col_desc, col_id, problem_snippet,
                 )
             return numeric_series.dropna() # Drop rows where this column became NaN
 
@@ -197,9 +199,9 @@ def load_ascii_1d(
     if len(common_indices) == 0:
         raise ValueError("No valid data rows found after attempting to convert q, I (and error) columns to numeric and removing NaNs.")
     if len(common_indices) < len(df):
-        warnings.warn(
-            f"{len(df) - len(common_indices)} rows were dropped due to NaNs in q, I, or error columns.",
-            UserWarning
+        logger.warning(
+            "%d rows were dropped due to NaNs in q, I, or error columns.",
+            len(df) - len(common_indices),
         )
 
     q_data = q_series.loc[common_indices].to_numpy()
@@ -227,9 +229,9 @@ def load_ascii_1d(
             if isinstance(custom_meta, dict):
                 metadata.update(custom_meta)
             else: # pragma: no cover
-                warnings.warn(f"Custom metadata_func for {filepath} did not return a dictionary.", UserWarning)
+                logger.warning("Custom metadata_func for %s did not return a dictionary.", filepath)
         except Exception as e: # pragma: no cover
-            warnings.warn(f"Error executing metadata_func for {filepath}: {e}", UserWarning)
+            logger.warning("Error executing metadata_func for %s: %s", filepath, e)
 
     # Default units (can be overridden by metadata_func or user later)
     # These are placeholders; true units often need to be known from context

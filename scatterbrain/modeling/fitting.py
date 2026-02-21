@@ -3,12 +3,16 @@
 Model fitting utilities for the ScatterBrain library.
 """
 
+import logging
 from typing import Callable, List, Dict, Any, Optional, Tuple, Sequence
 import numpy as np
 from scipy.optimize import curve_fit, OptimizeWarning
 import warnings
 
 from ..core import ScatteringCurve1D
+from ..utils import FittingError
+
+logger = logging.getLogger(__name__)
 
 
 def fit_model(
@@ -82,16 +86,21 @@ def fit_model(
           are available in the input curve and used (sigma in curve_fit).
         - 'success' (bool): True if `curve_fit` reported success.
         - 'message' (str): Message from `curve_fit`.
-        Returns None if the fit fails or an error occurs.
+        Returns None if the fit fails due to a runtime condition (e.g., not enough
+        data points, scipy convergence failure). A WARNING-level log message is
+        emitted describing the reason. Raises
+        :class:`~scatterbrain.utils.FittingError` for programming errors such as
+        mismatched parameter counts or an object of the wrong type.
 
     Raises
     ------
-    ValueError
-        If `param_names` and `initial_params` (excluding scale/bg) mismatch.
-        If fixed_params contains unknown parameter names.
+    FittingError
+        If `param_names` and `initial_params` (excluding scale/bg) mismatch,
+        if bounds length mismatches, or if the input curve is not a
+        ScatteringCurve1D object.
     """
     if not isinstance(curve, ScatteringCurve1D):
-        raise TypeError("Input 'curve' must be a ScatteringCurve1D object.")
+        raise FittingError("Input 'curve' must be a ScatteringCurve1D object.")
 
     _fixed_params = fixed_params if fixed_params is not None else {}
 
@@ -108,9 +117,9 @@ def fit_model(
     i_fit = i_data_full[fit_mask]
 
     if len(q_fit) < len(initial_params): # Need at least as many points as parameters
-        warnings.warn(
-            f"FitModel: Not enough data points ({len(q_fit)}) in the selected q-range "
-            f"to fit {len(initial_params)} parameters. Fit aborted.", UserWarning
+        logger.warning(
+            "FitModel: Not enough data points (%d) in the selected q-range to fit %d parameters. Fit aborted.",
+            len(q_fit), len(initial_params),
         )
         return None
 
@@ -118,10 +127,9 @@ def fit_model(
     if err_data_full is not None:
         sigma_fit = err_data_full[fit_mask]
         if np.any(sigma_fit <= 0):
-            warnings.warn(
-                "FitModel: Some error values (sigma) are non-positive. "
-                "These will cause issues with `curve_fit`. Using absolute errors, "
-                "or ignoring errors if all are non-positive.", UserWarning
+            logger.warning(
+                "FitModel: Some sigma (error) values are non-positive. "
+                "Absolute values will be used; if all are non-positive, errors will be ignored."
             )
             if np.all(sigma_fit <=0 ):
                 sigma_fit = None # Ignore errors
@@ -148,7 +156,7 @@ def fit_model(
                           num_expected_model_params
                           
     if len(initial_params) != num_expected_fitted:
-        raise ValueError(
+        raise FittingError(
             f"Length of initial_params ({len(initial_params)}) does not match "
             f"the number of parameters to be fitted ({num_expected_fitted}). "
             f"Ensure initial_params are provided only for non-fixed parameters."
@@ -156,7 +164,7 @@ def fit_model(
 
     if param_bounds is not None:
         if len(param_bounds[0]) != num_expected_fitted or len(param_bounds[1]) != num_expected_fitted:
-            raise ValueError(
+            raise FittingError(
                 f"Length of param_bounds components must match the number of "
                 f"parameters to be fitted ({num_expected_fitted})."
             )
@@ -229,17 +237,17 @@ def fit_model(
             fit_success = True
             fit_message = "Fit successful."
     except RuntimeError as e: # pragma: no cover
-        warnings.warn(f"FitModel: `scipy.optimize.curve_fit` failed with RuntimeError: {e}", UserWarning)
+        logger.warning("FitModel: `scipy.optimize.curve_fit` failed with RuntimeError: %s", e)
         return None
     except OptimizeWarning as ow: # pragma: no cover
         # This might be caught by the filter above, but as a fallback
-        warnings.warn(f"FitModel: `scipy.optimize.curve_fit` issued an OptimizeWarning: {ow}", UserWarning)
+        logger.warning("FitModel: `scipy.optimize.curve_fit` issued an OptimizeWarning: %s", ow)
         # Continue, but mark success potentially based on pcov
         popt, pcov = ow.args[0] if len(ow.args) > 0 and isinstance(ow.args[0], tuple) else (p0_fit, np.full((len(p0_fit), len(p0_fit)), np.inf))
         fit_success = False # Or check if pcov is valid
         fit_message = str(ow)
     except ValueError as e: # e.g. incompatible shapes if bounds are wrong
-        warnings.warn(f"FitModel: `scipy.optimize.curve_fit` failed with ValueError: {e}", UserWarning)
+        logger.warning("FitModel: `scipy.optimize.curve_fit` failed with ValueError: %s", e)
         return None
 
 
@@ -282,7 +290,7 @@ def fit_model(
         if degrees_of_freedom > 0:
             chi_squared_reduced = np.sum(residuals**2) / degrees_of_freedom
         else: # pragma: no cover
-            warnings.warn("FitModel: Degrees of freedom <= 0, cannot calculate reduced chi-squared.", UserWarning)
+            logger.warning("FitModel: Degrees of freedom <= 0, cannot calculate reduced chi-squared.")
 
 
     return {

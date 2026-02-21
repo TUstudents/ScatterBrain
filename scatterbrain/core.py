@@ -3,10 +3,13 @@
 Core data structures for the ScatterBrain library.
 """
 
+import logging
 from typing import Optional, Dict, Any, Union, Tuple
 import numpy as np
 import copy
-from .utils import convert_q_array # Import the utility function
+from .utils import convert_q_array, ProcessingError
+
+logger = logging.getLogger(__name__)
 
 # Define common unit types for type hinting clarity, though these are just strings
 QUnit = str  # e.g., "nm^-1", "A^-1"
@@ -293,7 +296,7 @@ class ScatteringCurve1D:
             except TypeError: # pragma: no cover
                 # If deepcopy fails (e.g., complex objects in metadata), do a shallow copy
                 # and warn the user or log. For basic JSON-like metadata, this is rare.
-                print("Warning: Metadata could not be deep-copied during to_dict; using shallow copy.")
+                logger.warning("Metadata could not be deep-copied during to_dict; using shallow copy.")
                 data_dict["metadata"] = self.metadata.copy()
         return data_dict
 
@@ -391,7 +394,7 @@ class ScatteringCurve1D:
         try:
             converted_q_values = convert_q_array(self.q, self.q_unit, new_unit)
         except ValueError as e:
-            raise ValueError(f"Failed to convert q units: {e}") from e
+            raise ProcessingError(f"Failed to convert q units: {e}") from e
 
         if inplace:
             self.q = converted_q_values

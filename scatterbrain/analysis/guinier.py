@@ -3,12 +3,15 @@
 Guinier analysis functions for SAXS data.
 """
 
-from typing import Optional, Tuple, Dict, Any # ... (rest of the imports from previous guinier_fit)
+import logging
+from typing import Optional, Tuple, Dict, Any
 import numpy as np
 from scipy.stats import linregress
-import warnings
 
-from ..core import ScatteringCurve1D # Note the relative import for core
+from ..core import ScatteringCurve1D
+from ..utils import AnalysisError
+
+logger = logging.getLogger(__name__)
 
 #
 # <<< PASTE THE ENTIRE guinier_fit FUNCTION CODE FROM THE PREVIOUS RESPONSE HERE >>>
@@ -77,8 +80,11 @@ def guinier_fit(
         - 'q_fit_max': Maximum q value used in the fit.
         - 'num_points_fit': Number of points used in the fit.
         - 'valid_guinier_range_criteria': String describing how the range was determined.
-        Returns None if a fit cannot be performed (e.g., insufficient data points,
-        positive slope, q_range results in no data).
+        Returns None if a fit cannot be performed due to a data-driven condition
+        (e.g., insufficient data points, no positive intensities, q_range results
+        in too few points). A WARNING-level log message is emitted describing the
+        reason. Raises :class:`~scatterbrain.utils.AnalysisError` for programming
+        errors such as passing an object of the wrong type.
 
     Notes
     -----
@@ -92,21 +98,21 @@ def guinier_fit(
       to weight ln(I(q)) values (currently not implemented, but planned).
     """
     if not isinstance(curve, ScatteringCurve1D):
-        raise TypeError("Input 'curve' must be a ScatteringCurve1D object.")
+        raise AnalysisError("Input 'curve' must be a ScatteringCurve1D object.")
 
     # --- Data preparation ---
     valid_i_mask = curve.intensity > 0
     if not np.any(valid_i_mask):
-        warnings.warn("Guinier fit: No positive intensity values found in the curve.", UserWarning)
+        logger.warning("Guinier fit: No positive intensity values found in the curve.")
         return None
 
     q_data = curve.q[valid_i_mask]
     i_data = curve.intensity[valid_i_mask]
 
     if len(q_data) < min_points:
-        warnings.warn(
-            f"Guinier fit: Insufficient data points ({len(q_data)} after filtering I>0) "
-            f"for analysis (min_points={min_points}).", UserWarning
+        logger.warning(
+            "Guinier fit: Insufficient data points (%d after filtering I>0) for analysis (min_points=%d).",
+            len(q_data), min_points,
         )
         return None
 
@@ -130,32 +136,33 @@ def guinier_fit(
         criteria_str = "Automatic q_range selection: "
         num_initial_points = max(min_points, int(len(q_data) * auto_q_selection_fraction))
         if num_initial_points < min_points:
-             warnings.warn(
-                f"Guinier fit (auto-range): Not enough points ({num_initial_points}) "
-                f"for initial Rg estimate. Using first {min_points} points if available.", UserWarning
+            logger.warning(
+                "Guinier fit (auto-range): Not enough points (%d) for initial Rg estimate. "
+                "Using first %d points if available.",
+                num_initial_points, min_points,
             )
-             num_initial_points = min(min_points, len(q_data))
-             if num_initial_points < min_points:
-                 return None
+            num_initial_points = min(min_points, len(q_data))
+            if num_initial_points < min_points:
+                return None
 
         q_sq_initial = q_squared_data[:num_initial_points]
         ln_i_initial = ln_i_data[:num_initial_points]
 
         if len(q_sq_initial) < 2:
-            warnings.warn("Guinier fit (auto-range): Less than 2 points for initial Rg estimate.", UserWarning)
+            logger.warning("Guinier fit (auto-range): Less than 2 points for initial Rg estimate.")
             return None
 
         try:
             regression_initial = linregress(q_sq_initial, ln_i_initial)
             slope_initial = regression_initial.slope
-            print(f"Initial slope: {slope_initial:.3g} (expected negative for Guinier fit).")
+            logger.debug("Auto-range initial slope: %.3g (expected negative for Guinier fit).", slope_initial)
         except ValueError:
-            warnings.warn("Guinier fit (auto-range): ValueError during initial linear regression.", UserWarning)
+            logger.warning("Guinier fit (auto-range): ValueError during initial linear regression.")
             return None
 
         # Issue warning for positive slope before any fallback logic
         if slope_initial >= 0:
-            warnings.warn("Guinier fit (auto-range): Initial fit yielded non-negative slope . ", UserWarning)
+            logger.warning("Guinier fit (auto-range): Initial fit yielded non-negative slope; Guinier approximation may not be valid in this q-range.")
             # Fallback logic after warning
             q_fit_min_val = q_data.min()
             q_fit_max_val = q_data[max(min_points-1, int(len(q_data) * 0.15))]
@@ -179,19 +186,19 @@ def guinier_fit(
                 criteria_str += f"Fallback q_max={q_fit_max_val:.3g} (no qRg_max or invalid Rg_est). "
             
             if q_fit_min_val >= q_fit_max_val: # Handle case where limits make range invalid
-                 warnings.warn(
-                    f"Guinier fit (auto-range): q_min ({q_fit_min_val:.3g}) >= q_max ({q_fit_max_val:.3g}) "
-                    "after applying qRg limits. Expanding q_max.", UserWarning)
-                 q_fit_max_val = q_data[min(len(q_data)-1, np.searchsorted(q_data, q_fit_min_val) + min_points)]
+                logger.warning(
+                    "Guinier fit (auto-range): q_min (%.3g) >= q_max (%.3g) after applying qRg limits. Expanding q_max.",
+                    q_fit_min_val, q_fit_max_val,
+                )
+                q_fit_max_val = q_data[min(len(q_data)-1, np.searchsorted(q_data, q_fit_min_val) + min_points)]
 
 
             fit_indices = np.where((q_data >= q_fit_min_val) & (q_data <= q_fit_max_val))[0]
 
     if len(fit_indices) < min_points:
-        warnings.warn(
-            f"Guinier fit: Selected q-range resulted in {len(fit_indices)} points, "
-            f"which is less than min_points={min_points}. Criteria: {criteria_str}",
-            UserWarning
+        logger.warning(
+            "Guinier fit: Selected q-range resulted in %d points, which is less than min_points=%d. Criteria: %s",
+            len(fit_indices), min_points, criteria_str,
         )
         return None
 
@@ -209,14 +216,13 @@ def guinier_fit(
         stderr_slope = regression_result.stderr
         stderr_intercept = regression_result.intercept_stderr
     except ValueError: # pragma: no cover
-        warnings.warn("Guinier fit: ValueError during final linear regression. Check selected data.", UserWarning)
+        logger.warning("Guinier fit: ValueError during final linear regression. Check selected data.")
         return None
 
     if slope >= 0:
-        warnings.warn(
+        logger.warning(
             "Guinier fit: Resulted in a non-negative slope (Rg^2 would be negative). "
-            "The Guinier approximation may not be valid for this q-range or data.",
-            UserWarning
+            "The Guinier approximation may not be valid for this q-range or data."
         )
         return {
             "Rg": np.nan, "Rg_err": np.nan, "I0": np.nan, "I0_err": np.nan,

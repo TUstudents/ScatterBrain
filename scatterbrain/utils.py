@@ -3,8 +3,11 @@
 Utility functions and constants for the ScatterBrain library.
 """
 
+import logging
 import numpy as np
 from typing import Union
+
+logging.getLogger("scatterbrain").addHandler(logging.NullHandler())
 
 # Define common q-units for clarity, though they are just strings.
 # These could be enhanced with an Enum or a more structured unit system later.
@@ -129,4 +132,4 @@ class FittingError(ScatterBrainError):
     """Exception raised for errors during model fitting."""
     pass
 
-# Future: Add physical constants, more complex unit conversions, logging setup, etc.
+# Future: Add physical constants, more complex unit conversions, etc.

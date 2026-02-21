@@ -3,9 +3,7 @@
 Unit tests for the scatterbrain.modeling subpackage,
 including form factors and fitting routines.
 """
-import pytest
-import numpy as np
-
+import logging
 import pytest
 import numpy as np
 import warnings
@@ -13,6 +11,7 @@ import warnings
 from scatterbrain.core import ScatteringCurve1D
 from scatterbrain.modeling.form_factors import sphere_pq, _Q_EPSILON
 from scatterbrain.modeling.fitting import fit_model
+from scatterbrain.utils import FittingError
 
 # --- Test Cases for Form Factors ---
 
@@ -319,7 +318,7 @@ class TestFitModel:
         assert np.isclose(results["fitted_params"]["radius"], sphere_model_params["true_radius"], rtol=0.05)
 
 
-    def test_fit_fail_not_enough_points(self, q_fit_values: np.ndarray, sphere_model_params: dict):
+    def test_fit_fail_not_enough_points(self, q_fit_values: np.ndarray, sphere_model_params: dict, caplog):
         """Test fit failure if q_range results in too few points."""
         # Create a curve with enough points overall
         curve = generate_sphere_scattering_data(
@@ -332,8 +331,7 @@ class TestFitModel:
         # Select a q_range that has fewer points than parameters
         q_sparse_range = (q_fit_values[0], q_fit_values[1]) # Only 2 points
         
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
             results = fit_model(
                 curve=curve,
                 model_func=sphere_pq,
@@ -341,22 +339,22 @@ class TestFitModel:
                 initial_params=initial_params_fit,
                 q_range=q_sparse_range
             )
-            assert results is None
-            assert any("Not enough data points" in str(warn.message) for warn in w)
+        assert results is None
+        assert any("Not enough data points" in r.message for r in caplog.records)
 
     def test_fit_mismatched_initial_params_length(self, ideal_sphere_curve_for_fit: ScatteringCurve1D):
         param_names_model = ['radius']
         # Too few initial_params (expected 3: scale, bg, radius)
-        initial_params_too_few = [1000.0, 5.0] 
-        with pytest.raises(ValueError, match="Length of initial_params .* does not match"):
+        initial_params_too_few = [1000.0, 5.0]
+        with pytest.raises(FittingError, match="Length of initial_params .* does not match"):
             fit_model(
                 curve=ideal_sphere_curve_for_fit, model_func=sphere_pq,
                 param_names=param_names_model, initial_params=initial_params_too_few
             )
-        
+
         # Too many initial_params
-        initial_params_too_many = [1000.0, 10.0, 5.0, 1.0] 
-        with pytest.raises(ValueError, match="Length of initial_params .* does not match"):
+        initial_params_too_many = [1000.0, 10.0, 5.0, 1.0]
+        with pytest.raises(FittingError, match="Length of initial_params .* does not match"):
             fit_model(
                 curve=ideal_sphere_curve_for_fit, model_func=sphere_pq,
                 param_names=param_names_model, initial_params=initial_params_too_many
@@ -367,7 +365,7 @@ class TestFitModel:
         initial_params_fit = [1000.0, 10.0, 5.0]
         # Bounds too short
         bounds_too_short = ([0,0], [np.inf, np.inf])
-        with pytest.raises(ValueError, match="Length of param_bounds components must match"):
+        with pytest.raises(FittingError, match="Length of param_bounds components must match"):
             fit_model(
                 curve=ideal_sphere_curve_for_fit, model_func=sphere_pq,
                 param_names=param_names_model, initial_params=initial_params_fit,
