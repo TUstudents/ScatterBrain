@@ -8,39 +8,45 @@ A Python library for loading, processing, analyzing, modeling, and visualizing S
 
 ## Environment & Installation
 
-A virtual environment is pre-configured at `.venv/`. Always activate it before running commands:
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management. Install all dependencies (including dev extras) with:
+
+```bash
+uv sync --all-extras
+```
+
+To run commands within the managed environment, prefix them with `uv run`:
+
+```bash
+uv run python -c "import scatterbrain; print(scatterbrain.__version__)"
+```
+
+Alternatively, activate the `.venv` that uv manages:
 
 ```bash
 source .venv/bin/activate
-```
-
-Install the package with all dev dependencies:
-
-```bash
-pip install -e ".[dev]"
 ```
 
 ## Common Commands
 
 ```bash
 # Run full test suite
-python -m pytest tests/
+uv run pytest tests/
 
 # Run a single test class or method
-python -m pytest tests/test_core.py::TestScatteringCurve1D::test_init_basic
-python -m pytest tests/test_analysis.py -k "TestGuinierFit"
+uv run pytest tests/test_core.py::TestScatteringCurve1D::test_init_basic
+uv run pytest tests/test_analysis.py -k "TestGuinierFit"
 
 # Run tests with coverage report
-python -m pytest tests/ --cov=scatterbrain --cov-report=term-missing
+uv run pytest tests/ --cov=scatterbrain --cov-report=term-missing
 
 # Format code (black, 88-char lines)
-black scatterbrain tests
+uv run black scatterbrain tests
 
 # Lint (configured in .flake8; max-line-length=88)
-flake8 scatterbrain tests
+uv run flake8 scatterbrain tests
 
 # Type check (non-blocking; ignore_missing_imports=true)
-mypy scatterbrain
+uv run mypy scatterbrain
 ```
 
 ## Architecture
