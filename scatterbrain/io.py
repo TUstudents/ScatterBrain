@@ -8,10 +8,10 @@ and (eventually) saving processed data or analysis results.
 
 import logging
 import pathlib
-from typing import Optional, Dict, Any, Union, List, Tuple
+from typing import Optional, Dict, Any, Union, List
 
 import numpy as np
-import pandas as pd # Using pandas for robust CSV/text file parsing
+import pandas as pd  # Using pandas for robust CSV/text file parsing
 
 from .core import ScatteringCurve1D, QUnit, IntensityUnit
 
@@ -28,8 +28,8 @@ def load_ascii_1d(
     comments: Optional[str] = "#",
     use_names: Optional[List[str]] = None,
     metadata_func: Optional[callable] = None,
-    encoding: str = 'utf-8',
-    **kwargs: Any
+    encoding: str = "utf-8",
+    **kwargs: Any,
 ) -> ScatteringCurve1D:
     """
     Loads 1D scattering data from an ASCII text file (e.g., .dat, .csv, .txt).
@@ -102,84 +102,114 @@ def load_ascii_1d(
     # Validate column types
     for col_name, col_val in [("q_col", q_col), ("i_col", i_col), ("err_col", err_col)]:
         if col_val is not None and not isinstance(col_val, (int, str)):
-            raise TypeError(f"Argument '{col_name}' must be an int, str, or None. Got {type(col_val)}")
+            raise TypeError(
+                f"Argument '{col_name}' must be an int, str, or None. Got {type(col_val)}"
+            )
 
     # Read header lines if metadata_func is provided or for general info
     header_lines: List[str] = []
     if skip_header > 0 or metadata_func:
         try:
-            with open(file_path_obj, 'r', encoding=encoding) as f:
-                for i in range(skip_header if skip_header > 0 else 20): # Read up to 20 lines for metadata
+            with open(file_path_obj, "r", encoding=encoding) as f:
+                for i in range(
+                    skip_header if skip_header > 0 else 20
+                ):  # Read up to 20 lines for metadata
                     try:
                         line = f.readline()
                         if not line:
                             break
                         header_lines.append(line.strip())
-                    except UnicodeDecodeError as ude: # pragma: no cover
-                        logger.warning("Unicode decode error reading header line %d from %s with encoding %s: %s. Skipping line for metadata.", i + 1, filepath, encoding, ude)
-                        header_lines.append(f"UnicodeDecodeError on line {i+1}") # Placeholder
-        except Exception as e: # pragma: no cover
-            logger.warning("Could not read header lines from %s for metadata: %s", filepath, e)
-
+                    except UnicodeDecodeError as ude:  # pragma: no cover
+                        logger.warning(
+                            "Unicode decode error reading header line %d from %s with encoding %s: %s. Skipping line for metadata.",
+                            i + 1,
+                            filepath,
+                            encoding,
+                            ude,
+                        )
+                        header_lines.append(
+                            f"UnicodeDecodeError on line {i+1}"
+                        )  # Placeholder
+        except Exception as e:  # pragma: no cover
+            logger.warning(
+                "Could not read header lines from %s for metadata: %s", filepath, e
+            )
 
     # Prepare pandas read_csv arguments
     read_csv_kwargs = {
         "filepath_or_buffer": file_path_obj,
         "delimiter": delimiter,
         "comment": comments,
-        "header": None if use_names or skip_header > 0 else 'infer', # Infer header if not skipping and not providing names
-        "skiprows": skip_header if not use_names else 0, # If use_names, pandas handles names, so don't skip here.
-                                                         # This logic might need refinement based on pandas behavior.
-                                                         # If skip_header is used, it's absolute.
+        "header": (
+            None if use_names or skip_header > 0 else "infer"
+        ),  # Infer header if not skipping and not providing names
+        "skiprows": (
+            skip_header if not use_names else 0
+        ),  # If use_names, pandas handles names, so don't skip here.
+        # This logic might need refinement based on pandas behavior.
+        # If skip_header is used, it's absolute.
         "names": use_names,
         "encoding": encoding,
-        **kwargs
+        **kwargs,
     }
     if use_names and skip_header > 0:
         # If both use_names and skip_header are given, pandas' names argument applies *after* skiprows.
         # So, we just pass skip_header to skiprows.
         read_csv_kwargs["skiprows"] = skip_header
 
-
     try:
         df = pd.read_csv(**read_csv_kwargs)
-    except Exception as e: # pragma: no cover
+    except Exception as e:  # pragma: no cover
         raise ValueError(f"Pandas could not read the file {filepath}. Error: {e}")
 
     if df.empty:
-        raise ValueError(f"No data loaded from {filepath}. The file might be empty or all lines were skipped/comments.")
+        raise ValueError(
+            f"No data loaded from {filepath}. The file might be empty or all lines were skipped/comments."
+        )
 
     # --- Column selection logic ---
-    def get_column_data(df_input: pd.DataFrame, col_id: Union[int, str], col_desc: str) -> pd.Series:
+    def get_column_data(
+        df_input: pd.DataFrame, col_id: Union[int, str], col_desc: str
+    ) -> pd.Series:
         try:
-            if isinstance(col_id, str): # Column name
+            if isinstance(col_id, str):  # Column name
                 if col_id not in df_input.columns:
-                    raise ValueError(f"{col_desc} column '{col_id}' not found in file columns: {list(df_input.columns)}.")
+                    raise ValueError(
+                        f"{col_desc} column '{col_id}' not found in file columns: {list(df_input.columns)}."
+                    )
                 series = df_input[col_id]
-            elif isinstance(col_id, int): # Column index
+            elif isinstance(col_id, int):  # Column index
                 if col_id >= len(df_input.columns):
                     raise ValueError(
                         f"{col_desc} column index {col_id} is out of bounds for {len(df_input.columns)} columns."
                     )
                 series = df_input.iloc[:, col_id]
-            else: # Should have been caught by earlier TypeError
-                raise TypeError(f"Invalid column identifier type for {col_desc}: {type(col_id)}")
+            else:  # Should have been caught by earlier TypeError
+                raise TypeError(
+                    f"Invalid column identifier type for {col_desc}: {type(col_id)}"
+                )
 
             # Attempt to convert to numeric, coercing errors to NaN
-            numeric_series = pd.to_numeric(series, errors='coerce')
+            numeric_series = pd.to_numeric(series, errors="coerce")
             if numeric_series.isnull().any():
                 nan_rows = numeric_series[numeric_series.isnull()].index.tolist()
                 # Show first few problematic rows for better error message
-                problem_snippet = series.iloc[nan_rows[:min(3, len(nan_rows))]].to_string(index=False)
+                problem_snippet = series.iloc[
+                    nan_rows[: min(3, len(nan_rows))]
+                ].to_string(index=False)
                 logger.warning(
                     "Non-numeric values found in %s column ('%s') and converted to NaN. "
                     "Problematic rows (first few):\n%s",
-                    col_desc, col_id, problem_snippet,
+                    col_desc,
+                    col_id,
+                    problem_snippet,
                 )
-            return numeric_series.dropna() # Drop rows where this column became NaN
+            return numeric_series.dropna()  # Drop rows where this column became NaN
 
-        except Exception as e: # pragma: no cover
-            raise ValueError(f"Error accessing or converting {col_desc} column ('{col_id}'): {e}")
+        except Exception as e:  # pragma: no cover
+            raise ValueError(
+                f"Error accessing or converting {col_desc} column ('{col_id}'): {e}"
+            )
 
     q_series = get_column_data(df, q_col, "q")
     i_series = get_column_data(df, i_col, "intensity")
@@ -197,7 +227,9 @@ def load_ascii_1d(
         common_indices = common_indices.intersection(err_series.index)
 
     if len(common_indices) == 0:
-        raise ValueError("No valid data rows found after attempting to convert q, I (and error) columns to numeric and removing NaNs.")
+        raise ValueError(
+            "No valid data rows found after attempting to convert q, I (and error) columns to numeric and removing NaNs."
+        )
     if len(common_indices) < len(df):
         logger.warning(
             "%d rows were dropped due to NaNs in q, I, or error columns.",
@@ -209,28 +241,35 @@ def load_ascii_1d(
     if err_series is not None:
         err_data = err_series.loc[common_indices].to_numpy()
 
-
     # --- Metadata ---
     metadata: Dict[str, Any] = {
         "source_filepath": str(file_path_obj.resolve()),
         "filename": file_path_obj.name,
         "loader_function": "load_ascii_1d",
         "loader_options": {
-            "q_col": q_col, "i_col": i_col, "err_col": err_col,
-            "skip_header": skip_header, "delimiter": delimiter,
-            "comments": comments, "use_names": use_names,
+            "q_col": q_col,
+            "i_col": i_col,
+            "err_col": err_col,
+            "skip_header": skip_header,
+            "delimiter": delimiter,
+            "comments": comments,
+            "use_names": use_names,
             "encoding": encoding,
-            "pandas_kwargs": kwargs
-        }
+            "pandas_kwargs": kwargs,
+        },
     }
     if metadata_func:
         try:
-            custom_meta = metadata_func(file_path_obj, header_lines[:skip_header]) # Pass only actual skipped header
+            custom_meta = metadata_func(
+                file_path_obj, header_lines[:skip_header]
+            )  # Pass only actual skipped header
             if isinstance(custom_meta, dict):
                 metadata.update(custom_meta)
-            else: # pragma: no cover
-                logger.warning("Custom metadata_func for %s did not return a dictionary.", filepath)
-        except Exception as e: # pragma: no cover
+            else:  # pragma: no cover
+                logger.warning(
+                    "Custom metadata_func for %s did not return a dictionary.", filepath
+                )
+        except Exception as e:  # pragma: no cover
             logger.warning("Error executing metadata_func for %s: %s", filepath, e)
 
     # Default units (can be overridden by metadata_func or user later)
@@ -239,14 +278,13 @@ def load_ascii_1d(
     q_unit: QUnit = metadata.get("q_unit", "nm^-1")
     intensity_unit: IntensityUnit = metadata.get("intensity_unit", "a.u.")
 
-
     return ScatteringCurve1D(
         q=q_data,
         intensity=i_data,
         error=err_data,
         metadata=metadata,
         q_unit=q_unit,
-        intensity_unit=intensity_unit
+        intensity_unit=intensity_unit,
     )
 
 
@@ -295,15 +333,15 @@ def save_ascii_1d(
 
     file_path_obj = pathlib.Path(filepath)
     if not file_path_obj.parent.exists():
-        raise ValueError(
-            f"Parent directory does not exist: {file_path_obj.parent}"
-        )
+        raise ValueError(f"Parent directory does not exist: {file_path_obj.parent}")
 
     write_error = include_error and curve.error is not None
 
     # Build header lines
     col_names = ["q", "intensity"] + (["error"] if write_error else [])
-    units = [curve.q_unit, curve.intensity_unit] + ([curve.intensity_unit] if write_error else [])
+    units = [curve.q_unit, curve.intensity_unit] + (
+        [curve.intensity_unit] if write_error else []
+    )
     auto_header_lines = [
         "Saved by ScatterBrain",
         f"Columns: {delimiter.join(col_names)}",
@@ -331,7 +369,7 @@ def save_ascii_1d(
         data,
         delimiter=delimiter,
         header=header_str,
-        comments="",   # header already has '#' prefixes
+        comments="",  # header already has '#' prefixes
         fmt=fmt,
     )
     logger.debug("Saved %d-point curve to %s.", len(curve.q), file_path_obj)

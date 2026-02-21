@@ -44,9 +44,45 @@
     *   Standard scattering plots ($I(q)$ vs $q$, Guinier, Porod) using Matplotlib.
     *   (Future) Interactive plots, 2D image display.
 
-## Installation (Placeholder)
+## Installation
 
-Once a stable version is released, `ScatterBrain` will be installable via pip:
+### From source (development)
+
+```bash
+git clone https://github.com/TUstudents/ScatterBrain.git
+cd ScatterBrain
+pip install -e ".[dev]"
+```
+
+### Stable release (when published to PyPI)
 
 ```bash
 pip install scatterbrain
+```
+
+**Requirements:** Python ≥ 3.10, numpy, scipy, matplotlib, pandas.
+
+## Quick Start
+
+```python
+from scatterbrain.io import load_ascii_1d
+from scatterbrain.processing import subtract_background
+from scatterbrain.analysis.guinier import guinier_fit
+from scatterbrain.visualization import plot_iq, plot_guinier
+
+# Load a 1D SAXS data file
+curve = load_ascii_1d("data.dat", err_col=2, skip_header=2, delimiter=r"\s+")
+
+# Subtract a constant background
+curve_bg = subtract_background(curve, 10.0)
+
+# Guinier analysis for Rg and I(0)
+result = guinier_fit(curve_bg, qrg_limit_max=1.3)
+print(f"Rg = {result['Rg']:.3f} nm,  I(0) = {result['I0']:.3e}")
+
+# Plot
+fig, ax = plot_iq(curve_bg)
+fig2, ax2 = plot_guinier(curve_bg, guinier_result=result)
+```
+
+See `notebooks/01_basic_workflow.ipynb` for a complete end-to-end tutorial.

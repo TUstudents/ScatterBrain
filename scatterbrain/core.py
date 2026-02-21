@@ -4,7 +4,7 @@ Core data structures for the ScatterBrain library.
 """
 
 import logging
-from typing import Optional, Dict, Any, Union, Tuple
+from typing import Optional, Dict, Any, Tuple
 import numpy as np
 import copy
 from .utils import convert_q_array, ProcessingError
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Define common unit types for type hinting clarity, though these are just strings
 QUnit = str  # e.g., "nm^-1", "A^-1"
-IntensityUnit = str # e.g., "cm^-1", "a.u."
+IntensityUnit = str  # e.g., "cm^-1", "a.u."
 
 
 class ScatteringCurve1D:
@@ -132,15 +132,27 @@ class ScatteringCurve1D:
             self.metadata = {}
         if "processing_history" not in self.metadata:
             self.metadata["processing_history"] = []
-            self.metadata["processing_history"].append("ScatteringCurve1D object created.")
+            self.metadata["processing_history"].append(
+                "ScatteringCurve1D object created."
+            )
         else:
             # Only append if not already present as last entry
-            if not self.metadata["processing_history"] or self.metadata["processing_history"][-1] != "ScatteringCurve1D object created.":
-                self.metadata["processing_history"].append("ScatteringCurve1D object created.")
+            if (
+                not self.metadata["processing_history"]
+                or self.metadata["processing_history"][-1]
+                != "ScatteringCurve1D object created."
+            ):
+                self.metadata["processing_history"].append(
+                    "ScatteringCurve1D object created."
+                )
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the object."""
-        error_info = f"errors (shape {self.error.shape})" if self.error is not None else "no errors"
+        error_info = (
+            f"errors (shape {self.error.shape})"
+            if self.error is not None
+            else "no errors"
+        )
         return (
             f"<ScatteringCurve1D: {len(self.q)} points, "
             f"q_range=({self.q.min():.3g} - {self.q.max():.3g} {self.q_unit}), "
@@ -152,7 +164,7 @@ class ScatteringCurve1D:
         """Return a user-friendly string summary of the object."""
         has_error = "Yes" if self.error is not None else "No"
         summary = [
-            f"ScatteringCurve1D Object Summary:",
+            "ScatteringCurve1D Object Summary:",
             f"  Number of data points: {len(self.q)}",
             f"  q range              : {self.q.min():.4g} to {self.q.max():.4g} [{self.q_unit}]",
             f"  Intensity range      : {self.intensity.min():.4e} to {self.intensity.max():.4e} [{self.intensity_unit}]",
@@ -160,7 +172,7 @@ class ScatteringCurve1D:
             f"  Metadata keys        : {list(self.metadata.keys()) if self.metadata else 'None'}",
         ]
         if "filename" in self.metadata:
-             summary.insert(1, f"  Source Filename      : {self.metadata['filename']}")
+            summary.insert(1, f"  Source Filename      : {self.metadata['filename']}")
         return "\n".join(summary)
 
     def __len__(self) -> int:
@@ -169,17 +181,17 @@ class ScatteringCurve1D:
 
     def __getitem__(self, key):
         """Allows slicing/indexing, returns a new ScatteringCurve1D object.
-        
+
         Parameters
         ----------
         key : Union[int, slice, np.ndarray, List]
             Index, slice, or boolean/integer array for selecting data points.
-            
+
         Returns
         -------
         ScatteringCurve1D
             New curve object containing the selected data points.
-            
+
         Raises
         ----
         IndexError
@@ -190,7 +202,7 @@ class ScatteringCurve1D:
         # Convert lists to numpy arrays for consistent handling
         if isinstance(key, list):
             key = np.array(key)
-            
+
         # Handle different types of keys
         if isinstance(key, (int, slice)):
             # Existing integer and slice handling
@@ -205,13 +217,17 @@ class ScatteringCurve1D:
             if key.dtype == bool:
                 # Boolean indexing
                 if key.shape != self.q.shape:
-                    raise IndexError(f"Boolean index did not match array shape. Got {key.shape} != {self.q.shape}")
+                    raise IndexError(
+                        f"Boolean index did not match array shape. Got {key.shape} != {self.q.shape}"
+                    )
             elif np.issubdtype(key.dtype, np.integer):
                 # Integer array indexing
                 if np.any((key >= len(self.q)) | (key < -len(self.q))):
                     raise IndexError("Integer indices out of bounds")
             elif np.issubdtype(key.dtype, np.floating):
-                raise TypeError("Float indices not supported. Use interpolation methods instead.")
+                raise TypeError(
+                    "Float indices not supported. Use interpolation methods instead."
+                )
             else:
                 raise TypeError(f"Unsupported index array type: {key.dtype}")
         else:
@@ -222,18 +238,20 @@ class ScatteringCurve1D:
         new_intensity = np.atleast_1d(self.intensity[key])
         new_error = np.atleast_1d(self.error[key]) if self.error is not None else None
         new_metadata = copy.deepcopy(self.metadata)
-        new_metadata["processing_history"].append(f"Indexed with {type(key).__name__} indexer")
-        
+        new_metadata["processing_history"].append(
+            f"Indexed with {type(key).__name__} indexer"
+        )
+
         return ScatteringCurve1D(
             q=new_q,
             intensity=new_intensity,
             error=new_error,
             metadata=new_metadata,
             q_unit=self.q_unit,
-            intensity_unit=self.intensity_unit
+            intensity_unit=self.intensity_unit,
         )
 
-    def copy(self) -> 'ScatteringCurve1D':
+    def copy(self) -> "ScatteringCurve1D":
         """
         Creates a deep copy of the ScatteringCurve1D object.
 
@@ -293,15 +311,17 @@ class ScatteringCurve1D:
             # Attempt a deepcopy of metadata for safety, but handle potential uncopyable items
             try:
                 data_dict["metadata"] = copy.deepcopy(self.metadata)
-            except TypeError: # pragma: no cover
+            except TypeError:  # pragma: no cover
                 # If deepcopy fails (e.g., complex objects in metadata), do a shallow copy
                 # and warn the user or log. For basic JSON-like metadata, this is rare.
-                logger.warning("Metadata could not be deep-copied during to_dict; using shallow copy.")
+                logger.warning(
+                    "Metadata could not be deep-copied during to_dict; using shallow copy."
+                )
                 data_dict["metadata"] = self.metadata.copy()
         return data_dict
 
     @classmethod
-    def from_dict(cls, data_dict: Dict[str, Any]) -> 'ScatteringCurve1D':
+    def from_dict(cls, data_dict: Dict[str, Any]) -> "ScatteringCurve1D":
         """
         Creates a ScatteringCurve1D object from a dictionary representation.
 
@@ -319,13 +339,17 @@ class ScatteringCurve1D:
         """
         q_data = np.array(data_dict["q"])
         intensity_data = np.array(data_dict["intensity"])
-        error_data = np.array(data_dict.get("error")) if data_dict.get("error") is not None else None
+        error_data = (
+            np.array(data_dict.get("error"))
+            if data_dict.get("error") is not None
+            else None
+        )
 
         return cls(
             q=q_data,
             intensity=intensity_data,
             error=error_data,
-            metadata=data_dict.get("metadata"), # Will be deepcopied in __init__
+            metadata=data_dict.get("metadata"),  # Will be deepcopied in __init__
             q_unit=data_dict.get("q_unit", "nm^-1"),
             intensity_unit=data_dict.get("intensity_unit", "a.u."),
         )
@@ -360,7 +384,9 @@ class ScatteringCurve1D:
                     self.metadata[key] = value
         self.metadata.setdefault("processing_history", []).append("Metadata updated.")
 
-    def convert_q_unit(self, new_unit: QUnit, inplace: bool = False) -> Optional['ScatteringCurve1D']:
+    def convert_q_unit(
+        self, new_unit: QUnit, inplace: bool = False
+    ) -> Optional["ScatteringCurve1D"]:
         """
         Converts the q-values and q_unit of the curve to a new unit.
 
@@ -387,8 +413,10 @@ class ScatteringCurve1D:
         """
         if self.q_unit == new_unit:
             if not inplace:
-                return self.copy() # Return a copy if no conversion needed and not inplace
-            return None # No change needed for inplace
+                return (
+                    self.copy()
+                )  # Return a copy if no conversion needed and not inplace
+            return None  # No change needed for inplace
 
         original_q_unit = self.q_unit
         try:
@@ -410,16 +438,18 @@ class ScatteringCurve1D:
             )
             return ScatteringCurve1D(
                 q=converted_q_values,
-                intensity=np.copy(self.intensity), # Copy intensity
-                error=np.copy(self.error) if self.error is not None else None, # Copy error
+                intensity=np.copy(self.intensity),  # Copy intensity
+                error=(
+                    np.copy(self.error) if self.error is not None else None
+                ),  # Copy error
                 metadata=new_metadata,
                 q_unit=new_unit,
-                intensity_unit=self.intensity_unit # Intensity unit remains the same
+                intensity_unit=self.intensity_unit,  # Intensity unit remains the same
             )
 
 
 # Example Usage (for testing during development, would be removed or moved to examples/tests)
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     q_vals = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     i_vals = np.array([100.0, 80.0, 50.0, 30.0, 10.0])
     e_vals = np.array([10.0, 8.0, 5.0, 3.0, 1.0])
@@ -434,7 +464,7 @@ if __name__ == "__main__": # pragma: no cover
 
     # Test copying
     curve2 = curve1.copy()
-    curve2.intensity *= 0.5 # Modify copy
+    curve2.intensity *= 0.5  # Modify copy
     curve2.update_metadata({"copied_from": "curve1"}, overwrite=True)
     print("\n--- Curve 2 (copied and modified) ---")
     print(str(curve2))
@@ -462,11 +492,15 @@ if __name__ == "__main__": # pragma: no cover
     print(str(curve_from_dict))
     assert np.array_equal(curve1.q, curve_from_dict.q)
     assert np.array_equal(curve1.intensity, curve_from_dict.intensity)
-    assert np.array_equal(curve1.error, curve_from_dict.error if curve1.error is not None else np.array([]))
-
+    assert np.array_equal(
+        curve1.error,
+        curve_from_dict.error if curve1.error is not None else np.array([]),
+    )
 
     # Test initialization without error
-    curve_no_err = ScatteringCurve1D(q_vals, i_vals, q_unit="1/A", intensity_unit="counts")
+    curve_no_err = ScatteringCurve1D(
+        q_vals, i_vals, q_unit="1/A", intensity_unit="counts"
+    )
     print("\n--- Curve without error ---")
     print(str(curve_no_err))
 
@@ -482,13 +516,17 @@ if __name__ == "__main__": # pragma: no cover
         print(f"Caught expected error: {e}")
 
     try:
-        ScatteringCurve1D(q_vals.reshape(5,1), i_vals)
+        ScatteringCurve1D(q_vals.reshape(5, 1), i_vals)
     except ValueError as e:
         print(f"Caught expected error: {e}")
 
     # Test metadata update
-    curve1.update_metadata({"new_key": "new_value", "sample_name": "SHOULD_NOT_OVERWRITE"})
-    curve1.update_metadata({"another_key": "another_value", "sample_name": "OVERWRITTEN"}, overwrite=True)
+    curve1.update_metadata(
+        {"new_key": "new_value", "sample_name": "SHOULD_NOT_OVERWRITE"}
+    )
+    curve1.update_metadata(
+        {"another_key": "another_value", "sample_name": "OVERWRITTEN"}, overwrite=True
+    )
     print("\n--- Curve 1 after metadata updates ---")
     print(f"Metadata: {curve1.metadata}")
     assert curve1.metadata["sample_name"] == "OVERWRITTEN"

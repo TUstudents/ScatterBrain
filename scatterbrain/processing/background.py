@@ -90,8 +90,8 @@ def subtract_background(
     bg_i = background.intensity * scale_factor
     bg_q = background.q
 
-    grids_match = (
-        len(q_sig) == len(bg_q) and np.allclose(q_sig, bg_q, rtol=1e-6, atol=0)
+    grids_match = len(q_sig) == len(bg_q) and np.allclose(
+        q_sig, bg_q, rtol=1e-6, atol=0
     )
 
     if grids_match:
@@ -106,16 +106,17 @@ def subtract_background(
                 "subtract_background: background q-range [%.4g, %.4g] does not fully "
                 "cover signal q-range [%.4g, %.4g]. Boundary values will be used for "
                 "extrapolation (numpy.interp clamps to edge values).",
-                bg_q.min(), bg_q.max(), q_sig.min(), q_sig.max(),
+                bg_q.min(),
+                bg_q.max(),
+                q_sig.min(),
+                q_sig.max(),
             )
         bg_on_signal_grid = np.interp(q_sig, bg_q, bg_i)
         if background.error is not None:
             bg_err_on_grid = np.interp(q_sig, bg_q, background.error * scale_factor)
         else:
             bg_err_on_grid = None
-        logger.debug(
-            "subtract_background: background interpolated onto signal q-grid."
-        )
+        logger.debug("subtract_background: background interpolated onto signal q-grid.")
     else:
         raise ProcessingError(
             "subtract_background: signal and background q-grids do not match and "
