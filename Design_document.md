@@ -246,7 +246,6 @@ ScatterBrain/
 +-- .github/
 |   \-- workflows/
 |       \-- ci.yml              # GitHub Actions CI
-+-- .flake8                     # Flake8 linting configuration
 +-- .gitignore
 +-- LICENSE                     # CC-BY-NC-SA-4.0
 +-- pyproject.toml              # PEP 517/518/621; build backend: uv_build
@@ -274,7 +273,7 @@ ScatterBrain/
 *   **Build Backend:** `uv_build` (declared in `pyproject.toml` `[build-system]`). Produces standard wheel and sdist artefacts compatible with PyPI. `twine` (available as a dev dependency) is used for publishing.
 *   **Code Quality:**
     *   `black` for code formatting.
-    *   `flake8` for linting (with plugins like `flake8-bugbear`, `flake8-comprehensions`).
+    *   `ruff` for linting (native implementations of pycodestyle, pyflakes, flake8-bugbear, flake8-comprehensions, flake8-print rules).
     *   `isort` for import sorting.
     *   `mypy` for optional static type checking.
 *   **Continuous Integration (CI):** GitHub Actions (to run tests, build docs, lint on pushes/PRs).
