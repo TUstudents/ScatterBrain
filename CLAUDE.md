@@ -45,8 +45,8 @@ uv run pytest --nbmake notebooks/01_basic_workflow.ipynb
 # Format code (black, 88-char lines)
 uv run black scatterbrain tests
 
-# Lint (configured in .flake8; max-line-length=88)
-uv run flake8 scatterbrain tests
+# Lint (ruff; configured in pyproject.toml)
+uv run ruff check scatterbrain tests
 
 # Type check (non-blocking; ignore_missing_imports=true)
 uv run mypy scatterbrain
@@ -123,7 +123,7 @@ All modules use `logging.getLogger(__name__)`. The root `scatterbrain` logger ha
 ## Code Style
 
 - Formatter: **black** (line length 88)
-- Linter: **flake8** - config in `.flake8`; E501/E203/W503 are globally suppressed; T201 is suppressed per-file for `__main__` blocks
+- Linter: **ruff** - config in `pyproject.toml`; E203 and E501 are ignored globally; T201 is ignored per-file
 - Type annotations are used but `mypy` is run with `continue-on-error` in CI (not blocking)
 - All text in log messages, exception messages, and other terminal-rendered strings must use plain ASCII only (no Unicode arrows, Greek letters, superscripts, or symbols)
 

@@ -186,7 +186,7 @@ def fit_model(
 
     def _build_param_vals(fitted_vals: Sequence[float]) -> Dict[str, float]:
         vals = dict(_fixed)
-        for name, val in zip(fitted_param_names, fitted_vals):
+        for name, val in zip(fitted_param_names, fitted_vals, strict=True):
             vals[name] = float(val)
         return vals
 

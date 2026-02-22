@@ -43,10 +43,7 @@ dev = [
     "pytest>=7.0", # More recent pytest
     "pytest-cov>=3.0",
     "black>=23.0", # More recent black
-    "flake8>=5.0", # More recent flake8
-    "flake8-bugbear",
-    "flake8-comprehensions",
-    "flake8-print",
+    "ruff>=0.4",
     "isort>=5.10",
     "mypy>=1.0", # More recent mypy
     "twine>=4.0",
@@ -102,18 +99,36 @@ ignore_missing_imports = true
 disallow_untyped_defs = true
 check_untyped_defs = true
 
-# Flake8 is still typically configured in .flake8 or setup.cfg.
-# Consider using Ruff as a linter/formatter in the future, as it reads pyproject.toml.
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*.egg-info",
+    "build",
+    "dist",
+    "docs",
+    "notebooks",
+]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "C4", "T20"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"scatterbrain/core.py" = ["T201"]
+"scatterbrain/modeling/form_factors.py" = ["T201"]
+"scatterbrain/examples/*.py" = ["T201", "F401"]
+"tests/test_visualization.py" = ["E402"]
 
 [tool.uv]
 dev-dependencies = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "black>=23.0",
-    "flake8>=5.0",
-    "flake8-bugbear",
-    "flake8-comprehensions",
-    "flake8-print",
+    "ruff>=0.4",
     "isort>=5.10",
     "mypy>=1.0",
     "nbmake>=1.4",

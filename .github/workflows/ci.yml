@@ -29,8 +29,8 @@ jobs:
       - name: Check formatting (black)
         run: uv run black --check scatterbrain tests
 
-      - name: Lint (flake8)
-        run: uv run flake8 scatterbrain tests
+      - name: Lint (ruff)
+        run: uv run ruff check scatterbrain tests
 
       - name: Type check (mypy)
         run: uv run mypy scatterbrain

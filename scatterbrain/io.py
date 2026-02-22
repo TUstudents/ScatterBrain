@@ -160,7 +160,9 @@ def load_ascii_1d(
     try:
         df = pd.read_csv(**read_csv_kwargs)
     except Exception as e:  # pragma: no cover
-        raise ValueError(f"Pandas could not read the file {filepath}. Error: {e}")
+        raise ValueError(
+            f"Pandas could not read the file {filepath}. Error: {e}"
+        ) from e
 
     if df.empty:
         raise ValueError(
@@ -209,7 +211,7 @@ def load_ascii_1d(
         except Exception as e:  # pragma: no cover
             raise ValueError(
                 f"Error accessing or converting {col_desc} column ('{col_id}'): {e}"
-            )
+            ) from e
 
     q_series = get_column_data(df, q_col, "q")
     i_series = get_column_data(df, i_col, "intensity")
