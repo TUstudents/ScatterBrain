@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/TUstudents/ScatterBrain/actions/workflows/ci.yml/badge.svg)](https://github.com/TUstudents/ScatterBrain/actions/workflows/ci.yml)
 
-> Status: Pre-Alpha (v0.1.0, under active development)
+> Status: Pre-Alpha (v0.2.0, under active development)
 
 ---
 
@@ -20,7 +20,7 @@ advanced analysis and model fitting.
 
 ## Features
 
-### Implemented (v0.1.0)
+### Implemented (v0.2.0)
 
 **Data I/O**
 - `load_ascii_1d` -- load 1D ASCII data files (`.dat`, `.txt`, `.csv`, any delimiter)
@@ -144,7 +144,7 @@ uv run pytest tests/ --cov=scatterbrain --cov-report=term-missing
 uv run black scatterbrain tests
 
 # Lint
-uv run flake8 scatterbrain tests
+uv run ruff check scatterbrain tests
 
 # Type check
 uv run mypy scatterbrain
