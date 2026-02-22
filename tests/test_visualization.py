@@ -15,7 +15,14 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.visualization import plot_iq, plot_guinier, plot_porod, plot_fit
+from scatterbrain.visualization import (
+    plot_iq,
+    plot_guinier,
+    plot_porod,
+    plot_fit,
+    plot_kratky,
+)
+from scatterbrain.utils import AnalysisError
 
 # --- Fixtures for Visualization Tests ---
 
@@ -438,3 +445,87 @@ class TestPlotFit:
             ax_main=ax_pre,
         )
         assert isinstance(fig_ret, Figure)
+
+
+@pytest.mark.usefixtures("plt_close_figures")
+class TestPlotKratky:
+    """Tests for plot_kratky."""
+
+    @pytest.fixture
+    def guinier_result(self) -> dict:
+        return {
+            "Rg": 4.0,
+            "Rg_err": 0.2,
+            "I0": 100.0,
+            "I0_err": 5.0,
+            "slope": -5.3,
+            "intercept": 4.6,
+            "r_value": -0.999,
+            "p_value": 1e-10,
+            "stderr_slope": 0.1,
+            "stderr_intercept": 0.05,
+            "q_fit_min": 0.01,
+            "q_fit_max": 0.15,
+            "num_points_fit": 10,
+            "valid_guinier_range_criteria": "Manual",
+            "weighted": False,
+        }
+
+    def test_standard_mode_returns_fig_axes(self, sample_curve1):
+        fig, ax = plot_kratky(sample_curve1)
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_standard_mode_y_data(self, sample_curve1):
+        fig, ax = plot_kratky(sample_curve1)
+        # The plotted y-data should be I * q^2
+        line = ax.lines[0]
+        expected_y = sample_curve1.intensity * sample_curve1.q**2
+        np.testing.assert_allclose(line.get_ydata(), expected_y)
+
+    def test_standard_mode_x_data(self, sample_curve1):
+        fig, ax = plot_kratky(sample_curve1)
+        line = ax.lines[0]
+        np.testing.assert_allclose(line.get_xdata(), sample_curve1.q)
+
+    def test_normalized_mode_y_data(self, sample_curve1, guinier_result):
+        rg = guinier_result["Rg"]
+        i0 = guinier_result["I0"]
+        fig, ax = plot_kratky(
+            sample_curve1, guinier_result=guinier_result, normalized=True
+        )
+        line = ax.lines[0]
+        expected_y = (sample_curve1.q * rg) ** 2 * sample_curve1.intensity / i0
+        np.testing.assert_allclose(line.get_ydata(), expected_y)
+
+    def test_normalized_mode_x_data(self, sample_curve1, guinier_result):
+        rg = guinier_result["Rg"]
+        fig, ax = plot_kratky(
+            sample_curve1, guinier_result=guinier_result, normalized=True
+        )
+        line = ax.lines[0]
+        np.testing.assert_allclose(line.get_xdata(), sample_curve1.q * rg)
+
+    def test_normalized_without_guinier_result_raises(self, sample_curve1):
+        with pytest.raises(AnalysisError, match="guinier_result is required"):
+            plot_kratky(sample_curve1, normalized=True)
+
+    def test_normalized_with_nan_rg_raises(self, sample_curve1, guinier_result):
+        guinier_result["Rg"] = float("nan")
+        with pytest.raises(AnalysisError, match="finite, positive Rg"):
+            plot_kratky(sample_curve1, guinier_result=guinier_result, normalized=True)
+
+    def test_normalized_with_nan_i0_raises(self, sample_curve1, guinier_result):
+        guinier_result["I0"] = float("nan")
+        with pytest.raises(AnalysisError, match="finite, positive I0"):
+            plot_kratky(sample_curve1, guinier_result=guinier_result, normalized=True)
+
+    def test_on_existing_axes(self, sample_curve1):
+        fig_pre, ax_pre = plt.subplots()
+        fig_ret, ax_ret = plot_kratky(sample_curve1, ax=ax_pre)
+        assert ax_ret is ax_pre
+        assert fig_ret is fig_pre
+
+    def test_custom_title(self, sample_curve1):
+        fig, ax = plot_kratky(sample_curve1, title="My Kratky")
+        assert ax.get_title() == "My Kratky"

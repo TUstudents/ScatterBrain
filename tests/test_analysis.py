@@ -8,7 +8,7 @@ import numpy as np
 import warnings
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.analysis import guinier_fit, porod_analysis
+from scatterbrain.analysis import guinier_fit, porod_analysis, scattering_invariant
 from scatterbrain.utils import AnalysisError
 
 
@@ -78,6 +78,7 @@ def ideal_guinier_curve() -> ScatteringCurve1D:
 @pytest.fixture
 def noisy_guinier_curve() -> ScatteringCurve1D:
     """A noisy Guinier curve."""
+    np.random.seed(7)  # Deterministic noise for reproducible auto-range selection
     q = np.linspace(0.01, 0.3, 100)  # Reduced q-range to avoid high-q noise effects
     return generate_guinier_data(
         rg=3.0, i0=500.0, q_values=q, noise_level=0.03
@@ -212,8 +213,9 @@ class TestGuinierFit:
         - Correct flagging in fit criteria
         """
         with caplog.at_level(logging.WARNING, logger="scatterbrain"):
+            # use_errors=False forces OLS so slope=0 exactly for flat data
             results = guinier_fit(
-                flat_curve, q_range=(0.1, 0.5)
+                flat_curve, q_range=(0.1, 0.5), use_errors=False
             )  # Manual range to ensure fit attempt
 
         assert results is not None
@@ -340,6 +342,69 @@ class TestGuinierFit:
             AnalysisError, match="Input 'curve' must be a ScatteringCurve1D object."
         ):
             guinier_fit("not_a_curve")
+
+
+class TestGuinierFitWeighted:
+    """Tests for the weighted (WLS) path in guinier_fit."""
+
+    def test_weighted_key_present_with_errors(self) -> None:
+        q = np.linspace(0.01, 0.25, 50)
+        i = 1000.0 * np.exp(-(q**2) * 25.0 / 3.0)
+        e = i * 0.02
+        curve = ScatteringCurve1D(q, i, e)
+        result = guinier_fit(curve, q_range=(0.01, 0.25))
+        assert result is not None
+        assert "weighted" in result
+        assert result["weighted"] is True
+
+    def test_weighted_key_false_when_use_errors_false(self) -> None:
+        q = np.linspace(0.01, 0.25, 50)
+        i = 1000.0 * np.exp(-(q**2) * 25.0 / 3.0)
+        e = i * 0.02
+        curve = ScatteringCurve1D(q, i, e)
+        result = guinier_fit(curve, q_range=(0.01, 0.25), use_errors=False)
+        assert result is not None
+        assert result["weighted"] is False
+
+    def test_weighted_key_false_when_no_errors(self) -> None:
+        q = np.linspace(0.01, 0.25, 50)
+        i = 1000.0 * np.exp(-(q**2) * 25.0 / 3.0)
+        curve = ScatteringCurve1D(q, i)
+        result = guinier_fit(curve, q_range=(0.01, 0.25))
+        assert result is not None
+        assert result["weighted"] is False
+
+    def test_weighted_and_unweighted_differ_for_heterogeneous_errors(self) -> None:
+        """With heterogeneous errors and noisy data, WLS and OLS give different slopes."""
+        rng = np.random.default_rng(0)
+        q = np.linspace(0.01, 0.25, 40)
+        i_true = 1000.0 * np.exp(-(q**2) * 25.0 / 3.0)
+        # Strongly heterogeneous errors: large at low q, tiny at high q
+        e = np.linspace(i_true[0] * 0.5, i_true[-1] * 0.001, 40)
+        # Add noise scaled to the error so the noisy data is dominated by low-q deviations
+        i = i_true + rng.normal(0, e)
+        i = np.maximum(i, 1e-3)
+        curve = ScatteringCurve1D(q, i, e)
+
+        result_wls = guinier_fit(curve, q_range=(0.01, 0.25), use_errors=True)
+        result_ols = guinier_fit(curve, q_range=(0.01, 0.25), use_errors=False)
+        assert result_wls is not None
+        assert result_ols is not None
+        # The slopes must differ when errors are strongly heterogeneous and data is noisy
+        assert not np.isclose(result_wls["slope"], result_ols["slope"], rtol=1e-4)
+
+    def test_weighted_rg_accurate_for_ideal_data(self) -> None:
+        """WLS recovers correct Rg for ideal Guinier data with proportional errors."""
+        q = np.linspace(0.01, 0.25, 100)
+        rg_true = 5.0
+        i = 1000.0 * np.exp(-(q**2) * rg_true**2 / 3.0)
+        e = i * 0.01  # proportional errors (homogeneous in ln space)
+        curve = ScatteringCurve1D(q, i, e)
+        result = guinier_fit(curve, q_range=(0.01, 0.25))
+        assert result is not None
+        assert result["weighted"] is True
+        assert np.isclose(result["Rg"], rg_true, rtol=1e-3)
+        assert np.isclose(result["I0"], 1000.0, rtol=1e-3)
 
 
 # --- Test Cases for porod_analysis ---
@@ -495,3 +560,110 @@ class TestPorodAnalysis:
             AnalysisError, match="Input 'curve' must be a ScatteringCurve1D object."
         ):
             porod_analysis("not_a_curve")
+
+
+# --- Test Cases for scattering_invariant ---
+
+
+class TestScatteringInvariant:
+    """Tests for the scattering_invariant function."""
+
+    @pytest.fixture
+    def flat_q2_curve(self) -> ScatteringCurve1D:
+        """Curve with I(q) = 1 so q^2 * I = q^2; integral = q^3/3."""
+        q = np.linspace(0.1, 1.0, 200)
+        i = np.ones_like(q)
+        return ScatteringCurve1D(q, i)
+
+    @pytest.fixture
+    def power_law_curve(self) -> ScatteringCurve1D:
+        """I(q) = Kp * q^-4, Kp=1."""
+        q = np.geomspace(0.1, 2.0, 300)
+        i = q**-4
+        return ScatteringCurve1D(q, i)
+
+    def test_numerical_integral_matches_trapz(
+        self, flat_q2_curve: ScatteringCurve1D
+    ) -> None:
+        result = scattering_invariant(flat_q2_curve)
+        assert result is not None
+        expected = float(
+            np.trapezoid(flat_q2_curve.q**2 * flat_q2_curve.intensity, flat_q2_curve.q)
+        )
+        assert np.isclose(result["Q_star"], expected, rtol=1e-10)
+
+    def test_result_keys_present(self, flat_q2_curve: ScatteringCurve1D) -> None:
+        result = scattering_invariant(flat_q2_curve)
+        assert result is not None
+        for key in (
+            "Q_star",
+            "Q_star_low_q",
+            "Q_star_high_q",
+            "Q_star_total",
+            "q_min",
+            "q_max",
+            "num_points",
+            "extrapolation_method",
+        ):
+            assert key in result, f"Missing key: {key}"
+
+    def test_porod_high_q_extrapolation_n4(
+        self, flat_q2_curve: ScatteringCurve1D
+    ) -> None:
+        kp = 2.5
+        n = 4.0
+        q_max = float(flat_q2_curve.q.max())
+        porod_result = {"porod_constant_kp": kp, "porod_exponent": n}
+        result = scattering_invariant(flat_q2_curve, porod_result=porod_result)
+        assert result is not None
+        expected_high_q = kp * q_max ** (3.0 - n) / (n - 3.0)
+        assert np.isclose(result["Q_star_high_q"], expected_high_q, rtol=1e-10)
+
+    def test_porod_exponent_le3_gives_nan_high_q(
+        self, flat_q2_curve: ScatteringCurve1D, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        porod_result = {"porod_constant_kp": 1.0, "porod_exponent": 3.0}
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
+            result = scattering_invariant(flat_q2_curve, porod_result=porod_result)
+        assert result is not None
+        assert np.isnan(result["Q_star_high_q"])
+        assert any("diverges" in r.message for r in caplog.records)
+
+    def test_guinier_low_q_adds_positive_contribution(
+        self, flat_q2_curve: ScatteringCurve1D
+    ) -> None:
+        guinier_result = {"Rg": 2.0, "I0": 100.0}
+        result = scattering_invariant(flat_q2_curve, guinier_result=guinier_result)
+        assert result is not None
+        assert result["Q_star_low_q"] > 0.0
+
+    def test_soft_failure_on_too_few_points(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        q = np.linspace(0.1, 0.2, 3)
+        i = np.ones(3)
+        curve = ScatteringCurve1D(q, i)
+        with caplog.at_level(logging.WARNING, logger="scatterbrain"):
+            result = scattering_invariant(curve)
+        assert result is None
+        assert any("valid points" in r.message for r in caplog.records)
+
+    def test_q_range_selection(self, flat_q2_curve: ScatteringCurve1D) -> None:
+        q_min, q_max = 0.3, 0.7
+        result = scattering_invariant(flat_q2_curve, q_range=(q_min, q_max))
+        assert result is not None
+        assert result["q_min"] >= q_min
+        assert result["q_max"] <= q_max
+
+    def test_invalid_curve_type_raises(self) -> None:
+        with pytest.raises(AnalysisError, match="ScatteringCurve1D"):
+            scattering_invariant("not_a_curve")  # type: ignore[arg-type]
+
+    def test_total_without_extrapolations(
+        self, flat_q2_curve: ScatteringCurve1D
+    ) -> None:
+        result = scattering_invariant(flat_q2_curve)
+        assert result is not None
+        # Without extrapolations, Q_star_low_q=0, Q_star_high_q=0, total = Q_star
+        assert np.isclose(result["Q_star_total"], result["Q_star"], rtol=1e-10)
+        assert result["extrapolation_method"] == "none"

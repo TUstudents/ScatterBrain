@@ -6,7 +6,7 @@ This module provides functions to generate common plots used in SAXS/WAXS analys
 """
 
 import logging
-from typing import Optional, Tuple, Any, Union, List, Dict
+from typing import Optional, Tuple, Any, Union, List, Dict, cast
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from .core import ScatteringCurve1D
+from .utils import AnalysisError
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def plot_iq(
         fig, current_ax = plt.subplots(figsize=(8, 6))  # Default figure size
     else:
         current_ax = ax
-        fig = current_ax.get_figure()
+        fig = cast(Figure, current_ax.get_figure())
 
     # Determine axis labels from the first curve if not provided
     first_curve = curves_list[0]
@@ -181,7 +182,7 @@ def plot_iq(
                 curve_obj.intensity,
                 yerr=curve_obj.error,
                 label=label if _errorbar_kwargs.get("fmt", ".") != "" else None,
-                **_errorbar_kwargs,
+                **_errorbar_kwargs,  # type: ignore[arg-type]
             )
             if _errorbar_kwargs.get("fmt", ".") != "":
                 current_ax.plot(curve_obj.q, curve_obj.intensity, **plot_args)
@@ -243,7 +244,7 @@ def plot_guinier(
         fig, current_ax = plt.subplots(figsize=(7, 5))
     else:
         current_ax = ax
-        fig = current_ax.get_figure()
+        fig = cast(Figure, current_ax.get_figure())
 
     # Filter to positive intensities
     mask = curve.intensity > 0
@@ -391,7 +392,7 @@ def plot_porod(
         fig, current_ax = plt.subplots(figsize=(7, 5))
     else:
         current_ax = ax
-        fig = current_ax.get_figure()
+        fig = cast(Figure, current_ax.get_figure())
 
     # Filter valid points
     mask = (curve.intensity > 0) & (curve.q > 0)
@@ -554,7 +555,7 @@ def plot_fit(
     # --- Figure / axes setup ---
     if ax_main is not None:
         current_ax_main = ax_main
-        fig = current_ax_main.get_figure()
+        fig = cast(Figure, current_ax_main.get_figure())
         current_ax_res = ax_res  # may be None; residuals will be skipped
     elif show_residuals:
         fig, (current_ax_main, current_ax_res) = plt.subplots(
@@ -654,6 +655,104 @@ def plot_fit(
     if not fig.get_constrained_layout():
         fig.tight_layout()
     return fig
+
+
+def plot_kratky(
+    curve: ScatteringCurve1D,
+    guinier_result: Optional[Any] = None,
+    normalized: bool = False,
+    ax: Optional[Axes] = None,
+    title: Optional[str] = "Kratky Plot",
+    **plot_kwargs: Any,
+) -> Tuple[Figure, Axes]:
+    """
+    Generate a Kratky plot: I(q)*q^2 vs q (standard) or dimensionless form.
+
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The scattering data to plot.
+    guinier_result : dict, optional
+        Output of :func:`scatterbrain.analysis.guinier.guinier_fit`.
+        Required when ``normalized=True``.
+    normalized : bool, optional
+        When False (default), plots I(q)*q^2 vs q on linear axes.
+        When True, plots the dimensionless Kratky: (q*Rg)^2 * I(q)/I(0) vs q*Rg.
+        Requires ``guinier_result`` with finite Rg and I0.
+    ax : Axes, optional
+        Existing matplotlib Axes to draw on.  A new figure is created
+        when *ax* is None (default).
+    title : str, optional
+        Plot title.  Default ``"Kratky Plot"``.
+    **plot_kwargs
+        Passed to the data plot call.
+
+    Returns
+    -------
+    tuple of (Figure, Axes)
+
+    Raises
+    ------
+    AnalysisError
+        If ``normalized=True`` but ``guinier_result`` is None or contains
+        non-finite Rg or I0.
+    """
+    if normalized:
+        if guinier_result is None:
+            raise AnalysisError(
+                "plot_kratky: guinier_result is required when normalized=True."
+            )
+        rg = guinier_result.get("Rg", np.nan)
+        i0 = guinier_result.get("I0", np.nan)
+        if not np.isfinite(rg) or rg <= 0:
+            raise AnalysisError(
+                "plot_kratky: guinier_result must contain a finite, positive Rg "
+                "for normalized Kratky plot."
+            )
+        if not np.isfinite(i0) or i0 <= 0:
+            raise AnalysisError(
+                "plot_kratky: guinier_result must contain a finite, positive I0 "
+                "for normalized Kratky plot."
+            )
+
+    if ax is None:
+        fig, current_ax = plt.subplots(figsize=(7, 5))
+    else:
+        current_ax = ax
+        fig = cast(Figure, current_ax.get_figure())
+
+    if normalized:
+        x_data = curve.q * rg
+        y_data = (curve.q * rg) ** 2 * curve.intensity / i0
+        xlabel = "q * Rg"
+        ylabel = "(q Rg)^2 * I(q) / I(0)"
+    else:
+        x_data = curve.q
+        y_data = curve.intensity * curve.q**2
+        xlabel = f"q ({curve.q_unit})" if curve.q_unit else "q"
+        ylabel = (
+            f"I(q) * q^2 [{curve.intensity_unit} * {curve.q_unit}^2]"
+            if curve.intensity_unit and curve.q_unit
+            else "I(q) * q^2"
+        )
+
+    current_ax.plot(
+        x_data,
+        y_data,
+        ".",
+        markersize=3,
+        label=curve.metadata.get("filename", "Data"),
+        **plot_kwargs,
+    )
+
+    current_ax.set_xlabel(xlabel)
+    current_ax.set_ylabel(ylabel)
+    if title:
+        current_ax.set_title(title)
+    current_ax.legend(fontsize=8)
+    current_ax.grid(True, linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    return fig, current_ax
 
 
 if __name__ == "__main__":  # pragma: no cover

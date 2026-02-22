@@ -35,7 +35,7 @@ except ImportError:
     from scatterbrain.visualization import plot_iq
 
 
-def run_basic_workflow():
+def run_basic_workflow() -> None:
     """
     Executes the example SAXS analysis workflow.
     """

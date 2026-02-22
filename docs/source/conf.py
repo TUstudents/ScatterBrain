@@ -2,87 +2,81 @@
 
 import os
 import sys
-# For Python 3.11+, tomllib is standard. For 3.10, we might need tomli as a docs dependency.
-# For simplicity with target >=3.10, let's assume tomllib or tomli is available.
+
 try:
-    import tomllib # Python 3.11+
+    import tomllib  # Python 3.11+
 except ImportError:
     try:
-        import tomli as tomllib # Python < 3.11, requires `pip install tomli`
+        import tomli as tomllib  # type: ignore[no-redef]
     except ImportError:
-        tomllib = None # Fallback if toml parser is not available
+        tomllib = None  # type: ignore[assignment]
 
-sys.path.insert(0, os.path.abspath('../../'))
+sys.path.insert(0, os.path.abspath("../../"))
 
 # -- Project information -----------------------------------------------------
-project = 'ScatterBrain'
-copyright = '2023, [Your Name/Organization Name]. Licensed under CC-BY-NC-SA 4.0'
-author = '[Your Name/Organization Name]'
+project = "ScatterBrain"
+copyright = "2026, Johannes Poms. Licensed under CC-BY-NC-SA 4.0"
+author = "Johannes Poms"
 
-# Get version from pyproject.toml
-release = '0.0.1.dev0' # Default fallback
-if tomllib:
+release = "0.0.1.dev0"  # default fallback
+if tomllib is not None:
     try:
-        with open("../../pyproject.toml", "rb") as f:
+        with open(os.path.join(os.path.dirname(__file__), "../../pyproject.toml"), "rb") as f:
             pyproject_data = tomllib.load(f)
         release = pyproject_data.get("project", {}).get("version", release)
     except FileNotFoundError:
-        pass # Keep default if pyproject.toml not found (e.g. during some CI build steps)
-else: # Fallback if no TOML parser
+        pass
+else:
     try:
-        from scatterbrain import __version__ as release_from_pkg
-        release = release_from_pkg
+        from scatterbrain import __version__ as release  # type: ignore[assignment]
     except ImportError:
-        pass # Keep default fallback
+        pass
 
-version = '.'.join(release.split('.')[:2])
-
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',     # << Now correctly listed as a built-in extension
-    'myst_parser',
-    'sphinx_autodoc_typehints',
-    'sphinx_rtd_theme',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
+    "myst_parser",
+    "sphinx_autodoc_typehints",
 ]
 
-# ... (rest of conf.py remains largely the same as before, but ensure it's compatible)
-# Specifically, the intersphinx_mapping and napoleon settings are still valid.
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# Napoleon settings (still valid and useful)
+# -- Napoleon settings -------------------------------------------------------
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
 napoleon_include_private_with_doc = False
-napoleon_include_special_with_doc = True
-napoleon_use_admonition_for_examples = True # Changed to True for better formatting of examples
-napoleon_use_admonition_for_notes = True   # Changed to True
-napoleon_use_admonition_for_references = True # Changed to True
-napoleon_use_ivar = True
 napoleon_use_param = True
 napoleon_use_rtype = True
 
-# MyST Parser options (ensure these are still current with myst_parser versions)
+# -- MyST settings -----------------------------------------------------------
 myst_enable_extensions = [
-    "amsmath",
-    "colon_fence",
-    "deflist",
     "dollarmath",
-    "html_admonition",
-    "html_image",
-    "linkify",
-    "replacements",
-    "smartquotes",
-    "substitution",
-    "tasklist",
+    "colon_fence",
 ]
-myst_heading_anchors = 3
+
+# -- Intersphinx -------------------------------------------------------------
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy", None),
+}
+
+# -- HTML output -------------------------------------------------------------
+html_theme = "sphinx_rtd_theme"
+html_static_path: list = []
+
+# -- autodoc -----------------------------------------------------------------
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "show-inheritance": True,
+}
+autodoc_typehints = "description"

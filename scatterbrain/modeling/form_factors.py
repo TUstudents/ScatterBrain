@@ -11,27 +11,27 @@ Often, the (sld_particle - sld_solvent)^2 * V_particle^2 part is incorporated
 into a scale factor or I(0) when fitting I(q) = scale * P(q).
 """
 
+import logging
+
 import numpy as np
+from scipy.special import j1 as bessel_j1
 
 # Small constant to prevent division by zero or issues with q=0
 # for functions where P(q=0) is handled by a limit.
 _Q_EPSILON = 1e-9
+
+logger = logging.getLogger(__name__)
 
 
 def sphere_pq(q: np.ndarray, radius: float) -> np.ndarray:
     """
     Calculate the form factor P(q) for a monodisperse sphere.
 
-    The form factor for a sphere is given by:
-    P(q) = [ (3 * (sin(qR) - qR*cos(qR))) / (qR)^3 ]^2
-         = [ (9 * pi / 2) * (J_{3/2}(qR))^2 / (qR)^3 ]
-         where J_{3/2}(x) = sqrt(2/(pi*x)) * (sin(x)/x - cos(x))
-         This simplifies to the first expression.
-         Also, J_1(x) is the Bessel function of first kind, order 1.
-         sqrt(pi*x/2) * J_{3/2}(x) = sin(x)/x - cos(x)
-         Another common representation using j1 (spherical Bessel function of order 1):
-         P(q) = [3 * j1(qR) / (qR)]^2
-         where j1(x) = (sin(x) - x*cos(x)) / x^2. Note that scipy.special.j1 is J_1, not j_1.
+    The form factor for a sphere is::
+
+        P(q) = [ 3 * (sin(qR) - qR*cos(qR)) / (qR)^3 ]^2
+
+    which gives P(0) = 1 via L'Hopital's rule.
 
     Parameters
     ----------
@@ -110,6 +110,170 @@ def sphere_pq(q: np.ndarray, radius: float) -> np.ndarray:
     func_val = 3.0 * (np.sin(x) - x * np.cos(x)) / (x**3)
     pq[mask] = func_val**2
 
+    return pq
+
+
+def cylinder_pq(q: np.ndarray, radius: float, length: float) -> np.ndarray:
+    """
+    Calculate the form factor P(q) for a monodisperse cylinder, randomly
+    oriented in solution.
+
+    The orientationally averaged form factor is:
+
+        P(q, R, L) = integral_0^{pi/2}
+            [2 * J1(q*R*sin(a)) / (q*R*sin(a))]^2
+            * [sin(q*L/2*cos(a)) / (q*L/2*cos(a))]^2
+            * sin(a) d_a
+
+    where J1 is the cylindrical Bessel function of order 1.
+
+    The integral is evaluated on a 64-point Gauss-Legendre quadrature grid
+    over alpha in [0, pi/2], fully vectorized over q.
+
+    Parameters
+    ----------
+    q : np.ndarray
+        Scattering vector magnitudes.
+    radius : float
+        Cylinder radius R.  Must be positive.
+    length : float
+        Cylinder length (full length L).  Must be positive.
+
+    Returns
+    -------
+    np.ndarray
+        Form factor P(q) normalized so that P(0) = 1.
+
+    Raises
+    ------
+    ValueError
+        If *radius* or *length* is not positive.
+    """
+    if radius <= 0:
+        raise ValueError("Cylinder radius must be positive.")
+    if length <= 0:
+        raise ValueError("Cylinder length must be positive.")
+
+    q_arr = np.asarray(q, dtype=float).ravel()
+    # 64-point Gauss-Legendre nodes and weights on [-1, 1]; map to [0, pi/2]
+    nodes, weights = np.polynomial.legendre.leggauss(64)
+    alpha = (nodes + 1.0) * (np.pi / 4.0)  # [0, pi/2]
+    w = weights * (np.pi / 4.0)  # Jacobian
+
+    sin_a = np.sin(alpha)  # shape (64,)
+    cos_a = np.cos(alpha)  # shape (64,)
+
+    # Broadcast: q_arr shape (N,), alpha shape (64,) -> (N, 64)
+    q_col = q_arr[:, np.newaxis]
+
+    # Radial term: 2*J1(u)/u, u = q*R*sin(a); handle u~0 via Taylor
+    u = q_col * radius * sin_a  # (N, 64)
+    safe_u = np.where(u < _Q_EPSILON, _Q_EPSILON, u)
+    term_r = np.where(u < _Q_EPSILON, 1.0, 2.0 * bessel_j1(safe_u) / safe_u)
+
+    # Axial term: sin(v)/v, v = q*L/2*cos(a)
+    v = q_col * (length / 2.0) * cos_a  # (N, 64)
+    safe_v = np.where(v < _Q_EPSILON, _Q_EPSILON, v)
+    term_l = np.where(v < _Q_EPSILON, 1.0, np.sin(safe_v) / safe_v)
+
+    integrand = term_r**2 * term_l**2 * sin_a  # (N, 64)
+    pq = integrand @ w  # (N,)
+
+    # Normalize so that P(0) = 1 (the integral at q=0 equals 1 by construction
+    # since both terms -> 1 as q -> 0, and integral sin(a) da over [0,pi/2] = 1).
+    # Divide by the q=0 value to be numerically safe.
+    pq_0 = float(np.dot(sin_a, w))
+    pq = pq / pq_0
+
+    return pq.reshape(np.asarray(q, dtype=float).shape)  # type: ignore[no-any-return]
+
+
+def core_shell_sphere_pq(
+    q: np.ndarray,
+    radius_core: float,
+    shell_thickness: float,
+    contrast_core: float = 1.0,
+    contrast_shell: float = 0.5,
+) -> np.ndarray:
+    """
+    Calculate the form factor P(q) for a spherically symmetric core-shell sphere.
+
+    The amplitude is::
+
+        F(q) = (4*pi/3) * [
+            R_c^3 * (rho_c - rho_s) * f(q, R_c)
+            + R_o^3 * rho_s * f(q, R_o)
+        ]
+
+    where f(q, R) = 3*(sin(qR) - qR*cos(qR)) / (qR)^3 is the sphere
+    amplitude factor (= 1 at q=0), R_c = radius_core,
+    R_o = radius_core + shell_thickness, and rho_c / rho_s are the
+    scattering length density contrasts.
+
+    P(q) = F(q)^2 / F(0)^2  (normalized to P(0) = 1).
+
+    Parameters
+    ----------
+    q : np.ndarray
+        Scattering vector magnitudes.
+    radius_core : float
+        Radius of the core.  Must be positive.
+    shell_thickness : float
+        Thickness of the shell (>= 0).  R_outer = radius_core + shell_thickness.
+    contrast_core : float, optional
+        Scattering length density contrast of the core.  Default 1.0.
+    contrast_shell : float, optional
+        Scattering length density contrast of the shell.  Default 0.5.
+
+    Returns
+    -------
+    np.ndarray
+        Form factor P(q) normalized to P(0) = 1.
+
+    Raises
+    ------
+    ValueError
+        If *radius_core* <= 0 or *shell_thickness* < 0.
+    """
+    if radius_core <= 0:
+        raise ValueError("core_shell_sphere_pq: radius_core must be positive.")
+    if shell_thickness < 0:
+        raise ValueError("core_shell_sphere_pq: shell_thickness must be >= 0.")
+
+    if contrast_core == contrast_shell:
+        logger.debug(
+            "core_shell_sphere_pq: contrast_core == contrast_shell; "
+            "returning P(q) = 1 (degenerate uniform sphere)."
+        )
+        return np.ones_like(np.asarray(q, dtype=float))
+
+    q_arr = np.asarray(q, dtype=float)
+    r_core = float(radius_core)
+    r_outer = r_core + float(shell_thickness)
+    rho_c = float(contrast_core)
+    rho_s = float(contrast_shell)
+
+    def _sphere_amplitude_factor(qr: np.ndarray) -> np.ndarray:
+        """f(qR) = 3*(sin(x) - x*cos(x)) / x^3, normalized to f(0) = 1."""
+        out = np.ones_like(qr)
+        mask = qr > _Q_EPSILON
+        x = qr[mask]
+        out[mask] = 3.0 * (np.sin(x) - x * np.cos(x)) / x**3
+        return out
+
+    qrc = q_arr * r_core
+    qro = q_arr * r_outer
+
+    f_core = _sphere_amplitude_factor(qrc)
+    f_outer = _sphere_amplitude_factor(qro)
+
+    # Amplitude (without the 4*pi/3 prefactor which cancels in the ratio)
+    amp = r_core**3 * (rho_c - rho_s) * f_core + r_outer**3 * rho_s * f_outer
+
+    # F(0): qR -> 0 means f(qR) -> 1
+    amp_0 = r_core**3 * (rho_c - rho_s) + r_outer**3 * rho_s
+
+    pq = (amp / amp_0) ** 2
     return pq
 
 

@@ -32,6 +32,7 @@ Documentation is available at [Link to your documentation when ready]
 """
 
 import logging
+from typing import Optional
 
 # Version of the scatterbrain package
 from importlib.metadata import version, PackageNotFoundError
@@ -66,7 +67,7 @@ __all__ = [
 
 def configure_logging(
     level: int = logging.DEBUG,
-    handler: logging.Handler = None,
+    handler: Optional[logging.Handler] = None,
 ) -> None:
     """Enable scatterbrain log output. Call once at application startup.
 

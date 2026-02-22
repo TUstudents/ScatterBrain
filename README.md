@@ -1,52 +1,64 @@
-# ScatterBrain 🧠✨
+# ScatterBrain
 
 **A Python library for SAXS/WAXS data analysis and modeling.**
 
-*Dealing with scattered X-rays and the (sometimes) complex thought process of analyzing them.*
+[![CI](https://github.com/TUstudents/ScatterBrain/actions/workflows/ci.yml/badge.svg)](https://github.com/TUstudents/ScatterBrain/actions/workflows/ci.yml)
 
-**Current Status:** Pre-Alpha (Under Active Development)
+> Status: Pre-Alpha (v0.1.0, under active development)
+
+---
 
 ## Overview
 
-`ScatterBrain` aims to provide a comprehensive, user-friendly, and extensible Python toolkit for scientists and researchers working with Small-Angle X-ray Scattering (SAXS) and Wide-Angle X-ray Scattering (WAXS) data. The library is designed to facilitate the entire workflow from data loading and processing to advanced analysis and model fitting.
+ScatterBrain aims to provide a comprehensive, user-friendly, and extensible
+Python toolkit for scientists and researchers working with Small-Angle X-ray
+Scattering (SAXS) and Wide-Angle X-ray Scattering (WAXS) data. The library is
+designed to facilitate the entire workflow from data loading and processing to
+advanced analysis and model fitting.
 
-## Guiding Principles
+---
 
-*   **Modularity:** Well-defined, testable components.
-*   **Iterative Development:** Core functionality first, then incremental enhancements.
-*   **Test-Supported Development:** Rigorous testing for reliability.
-*   **Clear Documentation:** Comprehensive guides for users and developers.
-*   **User-Centric Design:** Focus on intuitive and efficient workflows.
-*   **Transparency:** Clear articulation of methods, assumptions, and limitations.
-*   **Extensibility:** Designed for easy addition of new models and analysis routines.
+## Features
 
-## Planned Features (Iterative Implementation)
+### Implemented (v0.1.0)
 
-*   **Data I/O:**
-    *   Loading 1D SAXS/WAXS data (e.g., `.dat`, `.txt`, `.csv`).
-    *   (Future) 2D detector image loading (TIFF, EDF, CBF, HDF5).
-*   **Data Reduction (Future):**
-    *   Azimuthal integration, detector corrections, masking.
-*   **Data Processing:**
-    *   Background subtraction, normalization.
-    *   (Future) Merging, smoothing, desmearing.
-*   **SAXS Analysis:**
-    *   Guinier analysis ($R_g$, $I(0)$).
-    *   Porod analysis (Porod constant, exponent, specific surface area).
-    *   (Future) Pair Distance Distribution Function $p(r)$, Kratky plots.
-*   **WAXS Analysis (Future):**
-    *   Peak fitting, $d$-spacing calculation (Bragg's Law).
-    *   Crystallite size estimation (Scherrer equation), degree of crystallinity.
-*   **Modeling:**
-    *   Library of analytical form factors $P(q)$ (sphere, cylinder, etc.).
-    *   (Future) Structure factors $S(q)$, polydispersity, global fitting.
-*   **Visualization:**
-    *   Standard scattering plots ($I(q)$ vs $q$, Guinier, Porod) using Matplotlib.
-    *   (Future) Interactive plots, 2D image display.
+**Data I/O**
+- `load_ascii_1d` -- load 1D ASCII data files (`.dat`, `.txt`, `.csv`, any delimiter)
+- `save_ascii_1d` -- write processed curves back to disk
+
+**Processing**
+- `subtract_background` -- subtract a constant or curve background with error propagation
+- `normalize` -- divide intensity by a scalar factor with error propagation
+
+**Analysis**
+- `guinier_fit` -- Guinier analysis for Rg and I(0); weighted least-squares when errors are available
+- `porod_analysis` -- Porod exponent and constant via log-log fit or average
+- `scattering_invariant` -- Q* = integral q^2 I(q) dq with Guinier low-q and Porod high-q extrapolations
+
+**Modeling**
+- `sphere_pq` -- monodisperse sphere form factor P(q)
+- `cylinder_pq` -- orientationally averaged cylinder form factor (64-point Gauss-Legendre quadrature)
+- `core_shell_sphere_pq` -- spherically symmetric core-shell form factor
+- `fit_model` -- fit any form factor to data with scale and background; uses lmfit internally for confidence intervals
+
+**Visualization**
+- `plot_iq` -- I(q) vs q (log-log or linear)
+- `plot_guinier` -- Guinier plot (ln I vs q^2)
+- `plot_porod` -- Porod plot (I*q^4 vs q or log-log)
+- `plot_fit` -- data + model overlay with optional normalized residuals panel
+- `plot_kratky` -- standard and dimensionless Kratky plots
+
+### Planned (future phases)
+
+- 2D detector image loading and azimuthal integration
+- Pair distance distribution function p(r)
+- Structure factors S(q) and polydispersity
+- WAXS peak fitting and Scherrer crystallite size analysis
+- Interactive visualization
+
+---
 
 ## Installation
-
-### From source (development)
 
 This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
 
@@ -56,7 +68,7 @@ cd ScatterBrain
 uv sync --all-extras
 ```
 
-Run commands inside the managed environment with `uv run`:
+Run commands in the managed environment:
 
 ```bash
 uv run python -c "import scatterbrain; print(scatterbrain.__version__)"
@@ -68,37 +80,81 @@ Or activate the virtual environment directly:
 source .venv/bin/activate
 ```
 
-### Stable release (when published to PyPI)
+**Requirements:** Python >= 3.10, numpy, scipy, matplotlib, pandas, lmfit >= 1.2.
 
-```bash
-pip install scatterbrain
-# or, if using uv:
-uv add scatterbrain
-```
-
-**Requirements:** Python >= 3.10, numpy, scipy, matplotlib, pandas.
+---
 
 ## Quick Start
 
 ```python
 from scatterbrain.io import load_ascii_1d
 from scatterbrain.processing import subtract_background
-from scatterbrain.analysis.guinier import guinier_fit
-from scatterbrain.visualization import plot_iq, plot_guinier
+from scatterbrain.analysis import guinier_fit, porod_analysis
+from scatterbrain.modeling.form_factors import sphere_pq
+from scatterbrain.modeling.fitting import fit_model
+from scatterbrain.visualization import plot_iq, plot_guinier, plot_fit
+import numpy as np
 
-# Load a 1D SAXS data file
+# Load 1D SAXS data
 curve = load_ascii_1d("data.dat", err_col=2, skip_header=2, delimiter=r"\s+")
 
-# Subtract a constant background
+# Background subtraction
 curve_bg = subtract_background(curve, 10.0)
 
-# Guinier analysis for Rg and I(0)
-result = guinier_fit(curve_bg, qrg_limit_max=1.3)
-print(f"Rg = {result['Rg']:.3f} nm,  I(0) = {result['I0']:.3e}")
+# Guinier analysis (weighted by errors when available)
+g = guinier_fit(curve_bg, qrg_limit_max=1.3)
+if g is not None:
+    print(f"Rg  = {g['Rg']:.3f} +/- {g['Rg_err']:.3f} nm")
+    print(f"I(0) = {g['I0']:.3e}")
 
-# Plot
-fig, ax = plot_iq(curve_bg)
-fig2, ax2 = plot_guinier(curve_bg, guinier_result=result)
+# Sphere form factor fit
+r_init = np.sqrt(5.0 / 3.0) * g["Rg"]
+result = fit_model(
+    curve_bg,
+    model_func=sphere_pq,
+    param_names=["radius"],
+    initial_params=[curve_bg.intensity.max(), 0.0, r_init],
+    param_bounds=([0, 0, 0.1], [1e6, 1e3, 100]),
+)
+if result is not None:
+    fp = result["fitted_params"]
+    print(f"radius = {fp['radius']:.3f} nm,  chi^2_red = {result['chi_squared_reduced']:.2f}")
+    fig = plot_fit(curve_bg, result, plot_residuals=True)
 ```
 
-See `notebooks/01_basic_workflow.ipynb` for a complete end-to-end tutorial.
+---
+
+## Tutorials
+
+- `notebooks/01_basic_workflow.ipynb` -- data loading, background subtraction, Guinier and Porod analysis, sphere form factor fit
+- `notebooks/02_form_factor_fitting.ipynb` -- cylinder and core-shell sphere fitting, lmfit confidence intervals, Kratky plot, scattering invariant
+
+---
+
+## Development
+
+```bash
+# Run tests
+uv run pytest tests/
+
+# Run tests with coverage
+uv run pytest tests/ --cov=scatterbrain --cov-report=term-missing
+
+# Format (black, 88-char lines)
+uv run black scatterbrain tests
+
+# Lint
+uv run flake8 scatterbrain tests
+
+# Type check
+uv run mypy scatterbrain
+
+# Build documentation
+uv run sphinx-build -W -b html docs/source docs/_build/html
+```
+
+---
+
+## License
+
+[CC BY-NC-SA 4.0](LICENSE) -- Johannes Poms, 2026.

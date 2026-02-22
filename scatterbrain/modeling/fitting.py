@@ -4,15 +4,25 @@ Model fitting utilities for the ScatterBrain library.
 """
 
 import logging
-from typing import Callable, List, Dict, Any, Optional, Tuple, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
 import numpy as np
-from scipy.optimize import curve_fit, OptimizeWarning
-import warnings
 
 from ..core import ScatteringCurve1D
 from ..utils import FittingError
 
 logger = logging.getLogger(__name__)
+
+try:
+    import lmfit
+
+    _LMFIT_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _LMFIT_AVAILABLE = False
+    logger.warning(
+        "lmfit is not installed. fit_model will fall back to scipy.optimize.curve_fit. "
+        "Install lmfit>=1.2 for confidence intervals and improved error reporting."
+    )
 
 
 def fit_model(
@@ -26,149 +36,124 @@ def fit_model(
     **curve_fit_kwargs: Any,
 ) -> Optional[Dict[str, Any]]:
     """
-    Fits a given model function to a ScatteringCurve1D object.
+    Fit a model function to a ScatteringCurve1D object.
 
-    This function uses `scipy.optimize.curve_fit` for least-squares fitting.
-    The model function `model_func` is expected to take `q` as its first argument,
-    followed by model parameters. This fitter wraps `model_func` to include
-    a scale factor and a constant background term, so the actual fitted model is:
+    The fitted model is::
+
         I_fit(q) = scale * model_func(q, *model_params) + background
+
+
+    ``scale`` and ``background`` are always the first two parameters; they
+    are prepended to *param_names* internally.
 
     Parameters
     ----------
     curve : ScatteringCurve1D
-        The experimental scattering data to fit.
-    model_func : Callable[..., np.ndarray]
-        The theoretical model function (e.g., a form factor P(q)).
-        Its signature must be `model_func(q, param1, param2, ...)`.
-    param_names : List[str]
-        A list of names for the parameters `param1, param2, ...` that
-        `model_func` accepts, in the same order. This list should NOT include
-        'scale' or 'background', as these are handled internally.
-    initial_params : Sequence[float]
-        Initial guesses for the model parameters (`param1, param2, ...`),
-        corresponding to `param_names`.
-        It should also include initial guesses for 'scale' and 'background'
-        at the beginning: [initial_scale, initial_background, initial_param1, ...].
-    param_bounds : Optional[Tuple[Sequence[float], Sequence[float]]], optional
-        Bounds for the parameters `(lower_bounds, upper_bounds)`.
-        The bounds should correspond to ALL fitted parameters, including
-        'scale' and 'background' at the beginning, then model-specific parameters.
-        Format: `([scale_low, bg_low, p1_low, ...], [scale_high, bg_high, p1_high, ...])`.
-        Use -np.inf or np.inf for unbounded parameters. Default is unbounded.
-    q_range : Optional[Tuple[Optional[float], Optional[float]]], optional
-        The q-range (min_q, max_q) over which to perform the fit.
-        If None (default), the full q-range of the curve is used.
-    fixed_params : Optional[Dict[str, float]], optional
-        A dictionary of parameters to keep fixed during the fit.
-        Keys can be 'scale', 'background', or any name from `param_names`.
-        The values are the fixed parameter values.
-        Note: Fixed parameters are *not* included in `initial_params` or `param_bounds`
-        for the fitting process itself, but the wrapper handles this.
-        The `initial_params` and `param_bounds` provided should be for the
-        *parameters being fitted*.
-    **curve_fit_kwargs : Any
-        Additional keyword arguments to pass directly to `scipy.optimize.curve_fit`
-        (e.g., `maxfev`, `ftol`).
+        Experimental scattering data to fit.
+    model_func : Callable
+        Theoretical model.  Signature: ``model_func(q, param1, param2, ...)``.
+    param_names : list of str
+        Names of the model-specific parameters (*not* including scale/background).
+    initial_params : sequence of float
+        Initial guesses for all *fitted* parameters in the order
+        ``[scale, background, *model_params]``, excluding fixed parameters.
+    param_bounds : tuple of (lower, upper), optional
+        Bounds for all *fitted* parameters in the same order as
+        *initial_params*.  Each bound is a sequence of floats.
+    q_range : tuple of (float or None, float or None), optional
+        ``(q_min, q_max)`` range for the fit.  None uses the curve edge.
+    fixed_params : dict, optional
+        Parameters to hold fixed.  Keys: 'scale', 'background', or any name
+        in *param_names*.  Values: fixed parameter values.
+    **curve_fit_kwargs
+        Extra keyword arguments (passed through for compatibility; used only
+        by the scipy fallback path).
 
     Returns
     -------
-    Optional[Dict[str, Any]]
-        A dictionary containing the fit results:
-        - 'fitted_params' (Dict[str, float]): Fitted values for all parameters
-          (scale, background, and model_params).
-        - 'fitted_params_stderr' (Dict[str, float]): Standard errors for the
-          fitted parameters.
-        - 'covariance_matrix' (np.ndarray): Covariance matrix of the fit.
-        - 'fit_curve' (ScatteringCurve1D): The model intensity calculated with
-          the fitted parameters over the original curve's q-range.
-        - 'chi_squared_reduced' (float): Reduced chi-squared value if errors
-          are available in the input curve and used (sigma in curve_fit).
-        - 'success' (bool): True if `curve_fit` reported success.
-        - 'message' (str): Message from `curve_fit`.
-        Returns None if the fit fails due to a runtime condition (e.g., not enough
-        data points, scipy convergence failure). A WARNING-level log message is
-        emitted describing the reason. Raises
-        :class:`~scatterbrain.utils.FittingError` for programming errors such as
-        mismatched parameter counts or an object of the wrong type.
+    dict or None
+        On success a dict with keys:
+
+        ``fitted_params``
+            dict of fitted parameter values (all params, including fixed).
+        ``fitted_params_stderr``
+            dict of standard errors.
+        ``covariance_matrix``
+            numpy array (fitted params only).
+        ``fit_curve``
+            ScatteringCurve1D with model evaluated over the full q range.
+        ``chi_squared_reduced``
+            float; nan if errors not available.
+        ``success``
+            bool.
+        ``message``
+            str.
+        ``q_fit_min``, ``q_fit_max``, ``num_points_fit``
+            Fit range information.
+        ``confidence_intervals``
+            dict mapping param name -> (lower, upper) 1-sigma CI, or None.
+        ``lmfit_result``
+            raw lmfit.MinimizerResult, or None on scipy fallback.
+
+        Returns None (with a WARNING log) if the fit fails due to a
+        runtime condition (not enough points, optimiser divergence).
 
     Raises
     ------
     FittingError
-        If `param_names` and `initial_params` (excluding scale/bg) mismatch,
-        if bounds length mismatches, or if the input curve is not a
-        ScatteringCurve1D object.
+        For programming errors: wrong input type, mismatched parameter counts.
     """
     if not isinstance(curve, ScatteringCurve1D):
         raise FittingError("Input 'curve' must be a ScatteringCurve1D object.")
 
-    _fixed_params = fixed_params if fixed_params is not None else {}
+    _fixed = fixed_params if fixed_params is not None else {}
 
-    # --- Prepare q and I data from the curve within the specified q_range ---
-    q_data_full = curve.q
-    i_data_full = curve.intensity
-    err_data_full = curve.error
+    # --- Prepare data in the q range ---
+    q_all = curve.q
+    i_all = curve.intensity
+    err_all = curve.error
 
     q_min_fit = (
-        q_data_full.min() if q_range is None or q_range[0] is None else q_range[0]
+        q_all.min() if q_range is None or q_range[0] is None else float(q_range[0])
     )
     q_max_fit = (
-        q_data_full.max() if q_range is None or q_range[1] is None else q_range[1]
+        q_all.max() if q_range is None or q_range[1] is None else float(q_range[1])
     )
 
-    fit_mask = (q_data_full >= q_min_fit) & (q_data_full <= q_max_fit)
-    q_fit = q_data_full[fit_mask]
-    i_fit = i_data_full[fit_mask]
+    mask = (q_all >= q_min_fit) & (q_all <= q_max_fit)
+    q_fit = q_all[mask]
+    i_fit = i_all[mask]
 
-    if len(q_fit) < len(initial_params):  # Need at least as many points as parameters
+    if len(q_fit) < len(initial_params):
         logger.warning(
-            "FitModel: Not enough data points (%d) in the selected q-range to fit %d parameters. Fit aborted.",
+            "FitModel: Not enough data points (%d) in q range to fit %d parameters.",
             len(q_fit),
             len(initial_params),
         )
         return None
 
     sigma_fit: Optional[np.ndarray] = None
-    if err_data_full is not None:
-        sigma_fit = err_data_full[fit_mask]
+    if err_all is not None:
+        sigma_fit = err_all[mask]
         if np.any(sigma_fit <= 0):
             logger.warning(
-                "FitModel: Some sigma (error) values are non-positive. "
-                "Absolute values will be used; if all are non-positive, errors will be ignored."
+                "FitModel: Some sigma values are non-positive; replacing with small value."
             )
             if np.all(sigma_fit <= 0):
-                sigma_fit = None  # Ignore errors
+                sigma_fit = None
             else:
-                sigma_fit[sigma_fit <= 0] = (
-                    1e-9  # Replace non-positive with small value
-                )
+                sigma_fit = sigma_fit.copy()
+                sigma_fit[sigma_fit <= 0] = 1e-9
 
-    # --- Parameter handling (fixed vs. fitted) ---
-    # Internal parameter order for fitting: scale, background, *model_params
-    internal_param_names_all = ["scale", "background"] + param_names
+    # --- Parameter bookkeeping ---
+    all_param_names = ["scale", "background"] + list(param_names)
 
-    # Separate initial_params and bounds for fixed vs. fitted
-    p0_fit: List[float] = []
-    bounds_fit_lower: List[float] = []
-    bounds_fit_upper: List[float] = []
-
-    current_p0_idx = 0
-
-    # Check initial_params length against expected number of fitted params
-    num_expected_model_params = len(param_names) - sum(
-        1 for pn in param_names if pn in _fixed_params
-    )
-    num_expected_fitted = (
-        (1 if "scale" not in _fixed_params else 0)
-        + (1 if "background" not in _fixed_params else 0)
-        + num_expected_model_params
-    )
+    num_expected_fitted = sum(1 for p in all_param_names if p not in _fixed)
 
     if len(initial_params) != num_expected_fitted:
         raise FittingError(
             f"Length of initial_params ({len(initial_params)}) does not match "
-            f"the number of parameters to be fitted ({num_expected_fitted}). "
-            f"Ensure initial_params are provided only for non-fixed parameters."
+            f"the number of parameters to be fitted ({num_expected_fitted})."
         )
 
     if param_bounds is not None:
@@ -180,188 +165,214 @@ def fit_model(
                 f"Length of param_bounds components must match the number of "
                 f"parameters to be fitted ({num_expected_fitted})."
             )
-        lower_b, upper_b = param_bounds
+        lower_b = list(param_bounds[0])
+        upper_b = list(param_bounds[1])
     else:
-        lower_b, upper_b = ([-np.inf] * num_expected_fitted), (
-            [np.inf] * num_expected_fitted
+        lower_b = [-np.inf] * num_expected_fitted
+        upper_b = [np.inf] * num_expected_fitted
+
+    # Map fitted-param index to global param name (preserving order)
+    fitted_param_names: List[str] = [p for p in all_param_names if p not in _fixed]
+
+    # --- Model wrapper ---
+    def _eval_model(q_arr: np.ndarray, param_vals: Dict[str, float]) -> np.ndarray:
+        model_args = [
+            param_vals[p] if p not in _fixed else _fixed[p] for p in param_names
+        ]
+        return (
+            param_vals["scale"] * model_func(q_arr, *model_args)
+            + param_vals["background"]
         )
 
-    # --- Define the wrapper function for scipy.optimize.curve_fit ---
-    # It takes q, then all *fitted* parameters
-    def fit_wrapper_func(q_wrapper: np.ndarray, *fitted_args: float) -> np.ndarray:
-        current_fitted_arg_idx = 0
-        eval_params: Dict[str, float] = (
-            {}
-        )  # To hold scale, background, and model params
+    def _build_param_vals(fitted_vals: Sequence[float]) -> Dict[str, float]:
+        vals = dict(_fixed)
+        for name, val in zip(fitted_param_names, fitted_vals):
+            vals[name] = float(val)
+        return vals
 
-        # Populate scale
-        if "scale" in _fixed_params:
-            eval_params["scale"] = _fixed_params["scale"]
-        else:
-            eval_params["scale"] = fitted_args[current_fitted_arg_idx]
-            current_fitted_arg_idx += 1
-
-        # Populate background
-        if "background" in _fixed_params:
-            eval_params["background"] = _fixed_params["background"]
-        else:
-            eval_params["background"] = fitted_args[current_fitted_arg_idx]
-            current_fitted_arg_idx += 1
-
-        # Populate model-specific parameters
-        model_specific_args = []
-        for p_name in param_names:
-            if p_name in _fixed_params:
-                model_specific_args.append(_fixed_params[p_name])
+    # ------------------------------------------------------------------ lmfit
+    if _LMFIT_AVAILABLE:
+        params = lmfit.Parameters()
+        p0_idx = 0
+        for pname in all_param_names:
+            if pname in _fixed:
+                params.add(pname, value=_fixed[pname], vary=False)
             else:
-                model_specific_args.append(fitted_args[current_fitted_arg_idx])
-                current_fitted_arg_idx += 1
+                lo = lower_b[p0_idx]
+                hi = upper_b[p0_idx]
+                params.add(
+                    pname,
+                    value=float(initial_params[p0_idx]),
+                    min=lo if np.isfinite(lo) else -np.inf,
+                    max=hi if np.isfinite(hi) else np.inf,
+                    vary=True,
+                )
+                p0_idx += 1
 
-        model_eval = model_func(q_wrapper, *model_specific_args)
-        return eval_params["scale"] * model_eval + eval_params["background"]
+        def _residual(lm_params: "lmfit.Parameters") -> np.ndarray:
+            pv = {n: lm_params[n].value for n in all_param_names}
+            model_vals = _eval_model(q_fit, pv)
+            diff = i_fit - model_vals
+            if sigma_fit is not None:
+                return diff / sigma_fit  # type: ignore[no-any-return]
+            return diff  # type: ignore[no-any-return]
 
-    # Populate p0_fit and bounds_fit for the actual fitting process
-    # (only for parameters that are NOT fixed)
-    for (
-        p_name_internal
-    ) in internal_param_names_all:  # scale, background, then model params
-        if p_name_internal not in _fixed_params:
-            p0_fit.append(initial_params[current_p0_idx])
-            bounds_fit_lower.append(lower_b[current_p0_idx])
-            bounds_fit_upper.append(upper_b[current_p0_idx])
-            current_p0_idx += 1
-        elif (
-            p_name_internal not in ["scale", "background"]
-            and p_name_internal not in param_names
-        ):
-            # This case should ideally not be hit if param_names is correct
-            raise ValueError(
-                f"Unknown parameter '{p_name_internal}' encountered in fixed_params logic."
-            )  # pragma: no cover
+        try:
+            lm_result = lmfit.minimize(_residual, params, method="leastsq")
+        except Exception as exc:
+            logger.warning("FitModel: lmfit.minimize failed: %s", exc)
+            return None
 
-    final_bounds = (bounds_fit_lower, bounds_fit_upper)
+        # Extract popt / pcov from lmfit result
+        fitted_vals_lm: Dict[str, float] = {
+            n: lm_result.params[n].value for n in all_param_names
+        }
+        fitted_stderr_lm: Dict[str, float] = {}
+        for n in all_param_names:
+            if n in _fixed:
+                fitted_stderr_lm[n] = 0.0
+            else:
+                se = lm_result.params[n].stderr
+                fitted_stderr_lm[n] = float(se) if se is not None else np.nan
 
-    # --- Perform the fit ---
+        # Build covariance matrix for the fitted (non-fixed) params
+        if lm_result.covar is not None:
+            pcov = np.array(lm_result.covar)
+        else:
+            pcov = np.full((len(fitted_param_names), len(fitted_param_names)), np.nan)
+
+        # Confidence intervals (1-sigma = 68.27%)
+        conf_intervals: Optional[Dict[str, Tuple[float, float]]] = None
+        try:
+            ci = lmfit.conf_interval(lm_result, lm_result, sigmas=[1])
+            conf_intervals = {}
+            for pname, ci_list in ci.items():
+                # ci_list: [(prob, val), ...] in ascending probability order
+                # Find lower (prob~0.1573) and upper (prob~0.8427)
+                lower_val = upper_val = np.nan
+                for prob, val in ci_list:
+                    if abs(prob - 0.1573) < 0.05:
+                        lower_val = val
+                    if abs(prob - 0.8427) < 0.05:
+                        upper_val = val
+                conf_intervals[pname] = (lower_val, upper_val)
+        except Exception:
+            conf_intervals = None
+
+        fit_success = bool(
+            lm_result.success
+            and lm_result.covar is not None
+            and np.all(np.isfinite(np.diag(pcov)))
+        )
+        fit_message = lm_result.message or "lmfit finished."
+
+        i_model_full = _eval_model(q_all, fitted_vals_lm)
+
+        chi2_red = np.nan
+        if sigma_fit is not None and len(sigma_fit) > 0:
+            res = i_fit - _eval_model(q_fit, fitted_vals_lm)
+            if sigma_fit is not None:
+                res = res / sigma_fit
+            dof = len(q_fit) - len(fitted_param_names)
+            if dof > 0:
+                chi2_red = float(np.sum(res**2) / dof)
+
+        fit_curve = ScatteringCurve1D(
+            q=q_all,
+            intensity=i_model_full,
+            metadata={"source": "model_fit", "original_curve_id": id(curve)},
+        )
+
+        return {
+            "fitted_params": fitted_vals_lm,
+            "fitted_params_stderr": fitted_stderr_lm,
+            "covariance_matrix": pcov,
+            "fit_curve": fit_curve,
+            "chi_squared_reduced": chi2_red,
+            "success": fit_success,
+            "message": fit_message,
+            "q_fit_min": float(q_fit.min()),
+            "q_fit_max": float(q_fit.max()),
+            "num_points_fit": int(len(q_fit)),
+            "confidence_intervals": conf_intervals,
+            "lmfit_result": lm_result,
+        }
+
+    # -------------------------------------------------------- scipy fallback
+    from scipy.optimize import OptimizeWarning, curve_fit  # noqa: PLC0415
+    import warnings  # noqa: PLC0415
+
+    def fit_wrapper_func(q_wrapper: np.ndarray, *fitted_args: float) -> np.ndarray:
+        pv = _build_param_vals(fitted_args)
+        for n in _fixed:
+            pv[n] = _fixed[n]
+        return _eval_model(q_wrapper, pv)
+
+    p0_fit = list(initial_params)
+    final_bounds = (lower_b, upper_b)
+
     try:
-        with warnings.catch_warnings():  # Catch OptimizeWarning from curve_fit
+        with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
             popt, pcov = curve_fit(
                 fit_wrapper_func,
                 q_fit,
                 i_fit,
                 p0=p0_fit,
-                sigma=sigma_fit,  # Use errors if available
-                absolute_sigma=(
-                    True if sigma_fit is not None else False
-                ),  # Treat sigma as true std dev
+                sigma=sigma_fit,
+                absolute_sigma=(sigma_fit is not None),
                 bounds=final_bounds,
                 **curve_fit_kwargs,
             )
-            fit_success = True
-            fit_message = "Fit successful."
-    except RuntimeError as e:  # pragma: no cover
-        logger.warning(
-            "FitModel: `scipy.optimize.curve_fit` failed with RuntimeError: %s", e
-        )
-        return None
-    except OptimizeWarning as ow:  # pragma: no cover
-        # This might be caught by the filter above, but as a fallback
-        logger.warning(
-            "FitModel: `scipy.optimize.curve_fit` issued an OptimizeWarning: %s", ow
-        )
-        # Continue, but mark success potentially based on pcov
-        popt, pcov = (
-            ow.args[0]
-            if len(ow.args) > 0 and isinstance(ow.args[0], tuple)
-            else (p0_fit, np.full((len(p0_fit), len(p0_fit)), np.inf))
-        )
-        fit_success = False  # Or check if pcov is valid
-        fit_message = str(ow)
-    except ValueError as e:  # e.g. incompatible shapes if bounds are wrong
-        logger.warning(
-            "FitModel: `scipy.optimize.curve_fit` failed with ValueError: %s", e
-        )
+        fit_success = True
+        fit_message = "Fit successful (scipy fallback)."
+    except (RuntimeError, ValueError) as exc:
+        logger.warning("FitModel (scipy fallback): curve_fit failed: %s", exc)
         return None
 
-    # --- Extract results and errors ---
-    fitted_params_all: Dict[str, float] = {}
-    fitted_params_stderr_all: Dict[str, float] = {}
-
+    fitted_vals_sp: Dict[str, float] = {}
+    fitted_stderr_sp: Dict[str, float] = {}
     popt_idx = 0
-    for p_name_internal in internal_param_names_all:
-        if p_name_internal in _fixed_params:
-            fitted_params_all[p_name_internal] = _fixed_params[p_name_internal]
-            fitted_params_stderr_all[p_name_internal] = 0.0  # No error for fixed params
+    for pname in all_param_names:
+        if pname in _fixed:
+            fitted_vals_sp[pname] = _fixed[pname]
+            fitted_stderr_sp[pname] = 0.0
         else:
-            if popt_idx < len(popt):
-                fitted_params_all[p_name_internal] = popt[popt_idx]
-                try:
-                    # Check for inf in diagonal of pcov, which means error is undefined
-                    if (
-                        pcov is not None
-                        and popt_idx < pcov.shape[0]
-                        and np.isfinite(pcov[popt_idx, popt_idx])
-                        and pcov[popt_idx, popt_idx] >= 0
-                    ):
-                        fitted_params_stderr_all[p_name_internal] = np.sqrt(
-                            pcov[popt_idx, popt_idx]
-                        )
-                    else:
-                        fitted_params_stderr_all[p_name_internal] = np.nan
-                except (TypeError, IndexError):  # pragma: no cover
-                    fitted_params_stderr_all[p_name_internal] = np.nan
-                popt_idx += 1
-            else:  # Should not happen if logic is correct
-                fitted_params_stderr_all[p_name_internal] = np.nan  # pragma: no cover
+            fitted_vals_sp[pname] = float(popt[popt_idx])
+            diag_val = pcov[popt_idx, popt_idx] if pcov is not None else np.nan
+            fitted_stderr_sp[pname] = (
+                float(np.sqrt(diag_val))
+                if np.isfinite(diag_val) and diag_val >= 0
+                else np.nan
+            )
+            popt_idx += 1
 
-    # --- Calculate fitted curve and chi-squared ---
-    i_model_full = fit_wrapper_func(
-        q_data_full,
-        *[
-            fitted_params_all[pn]
-            for pn in internal_param_names_all
-            if pn not in _fixed_params
-        ],
-    )
-    fit_ScatteringCurve = ScatteringCurve1D(
-        q=q_data_full,
+    i_model_full = _eval_model(q_all, fitted_vals_sp)
+    fit_curve = ScatteringCurve1D(
+        q=q_all,
         intensity=i_model_full,
         metadata={"source": "model_fit", "original_curve_id": id(curve)},
     )
 
-    chi_squared_reduced = np.nan
+    chi2_red = np.nan
     if sigma_fit is not None and len(sigma_fit) > 0:
-        residuals = (
-            i_fit
-            - fit_wrapper_func(
-                q_fit,
-                *[
-                    fitted_params_all[pn]
-                    for pn in internal_param_names_all
-                    if pn not in _fixed_params
-                ],
-            )
-        ) / sigma_fit
-        degrees_of_freedom = len(q_fit) - len(popt)
-        if degrees_of_freedom > 0:
-            chi_squared_reduced = np.sum(residuals**2) / degrees_of_freedom
-        else:  # pragma: no cover
-            logger.warning(
-                "FitModel: Degrees of freedom <= 0, cannot calculate reduced chi-squared."
-            )
+        res = (i_fit - _eval_model(q_fit, fitted_vals_sp)) / sigma_fit
+        dof = len(q_fit) - len(popt)
+        if dof > 0:
+            chi2_red = float(np.sum(res**2) / dof)
 
+    pcov_valid = pcov is not None and not np.any(np.isinf(np.diag(pcov)))
     return {
-        "fitted_params": fitted_params_all,
-        "fitted_params_stderr": fitted_params_stderr_all,
+        "fitted_params": fitted_vals_sp,
+        "fitted_params_stderr": fitted_stderr_sp,
         "covariance_matrix": pcov,
-        "fit_curve": fit_ScatteringCurve,
-        "chi_squared_reduced": chi_squared_reduced,
-        "success": fit_success
-        and (
-            pcov is not None and not np.any(np.isinf(np.diag(pcov)))
-        ),  # More robust success check
+        "fit_curve": fit_curve,
+        "chi_squared_reduced": chi2_red,
+        "success": fit_success and pcov_valid,
         "message": fit_message,
-        "q_fit_min": q_fit.min(),
-        "q_fit_max": q_fit.max(),
-        "num_points_fit": len(q_fit),
+        "q_fit_min": float(q_fit.min()),
+        "q_fit_max": float(q_fit.max()),
+        "num_points_fit": int(len(q_fit)),
+        "confidence_intervals": None,
+        "lmfit_result": None,
     }

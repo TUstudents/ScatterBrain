@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ScatterBrain
 
-A Python library for loading, processing, analyzing, modeling, and visualizing SAXS/WAXS (Small/Wide-Angle X-ray Scattering) data. Development follows an iterative phase plan described in `PHASE0_PLAN.md` and `PHASE1_PLAN.md`. The design spec lives in `Design_document.md`.
+A Python library for loading, processing, analyzing, modeling, and visualizing SAXS/WAXS (Small/Wide-Angle X-ray Scattering) data. Development follows an iterative phase plan described in `PHASE0_PLAN.md` through `PHASE5_PLAN.md`. The design spec lives in `Design_document.md`.
 
 ## Environment & Installation
 

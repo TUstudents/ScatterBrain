@@ -124,7 +124,7 @@ class ScatteringCurve1D:
                 )
             self.error: Optional[np.ndarray] = error
         else:
-            self.error: Optional[np.ndarray] = None
+            self.error = None
 
         if metadata is not None:
             self.metadata = copy.deepcopy(metadata)
@@ -179,7 +179,7 @@ class ScatteringCurve1D:
         """Return the number of data points in the curve."""
         return len(self.q)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> "ScatteringCurve1D":
         """Allows slicing/indexing, returns a new ScatteringCurve1D object.
 
         Parameters
@@ -275,7 +275,15 @@ class ScatteringCurve1D:
             self.intensity_unit,
         )
 
-    def __init_copy__(self, q, intensity, error, metadata, q_unit, intensity_unit):
+    def __init_copy__(
+        self,
+        q: np.ndarray,
+        intensity: np.ndarray,
+        error: Optional[np.ndarray],
+        metadata: Dict[str, Any],
+        q_unit: str,
+        intensity_unit: str,
+    ) -> "ScatteringCurve1D":
         # Internal method to bypass __init__'s "object created" history entry
         self.q = q
         self.intensity = intensity
@@ -362,7 +370,9 @@ class ScatteringCurve1D:
         """Returns the minimum and maximum intensity values."""
         return self.intensity.min(), self.intensity.max()
 
-    def update_metadata(self, new_metadata: Dict[str, Any], overwrite: bool = False):
+    def update_metadata(
+        self, new_metadata: Dict[str, Any], overwrite: bool = False
+    ) -> None:
         """
         Updates the metadata dictionary.
 
@@ -492,10 +502,8 @@ if __name__ == "__main__":  # pragma: no cover
     print(str(curve_from_dict))
     assert np.array_equal(curve1.q, curve_from_dict.q)
     assert np.array_equal(curve1.intensity, curve_from_dict.intensity)
-    assert np.array_equal(
-        curve1.error,
-        curve_from_dict.error if curve1.error is not None else np.array([]),
-    )
+    if curve1.error is not None and curve_from_dict.error is not None:
+        assert np.array_equal(curve1.error, curve_from_dict.error)
 
     # Test initialization without error
     curve_no_err = ScatteringCurve1D(

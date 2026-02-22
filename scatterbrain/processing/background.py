@@ -5,7 +5,7 @@ Background subtraction functions for 1D scattering curves.
 
 import logging
 import copy
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 
@@ -142,6 +142,74 @@ def subtract_background(
 
     return ScatteringCurve1D(
         q=np.copy(q_sig),
+        intensity=new_intensity,
+        error=new_error,
+        metadata=new_metadata,
+        q_unit=curve.q_unit,
+        intensity_unit=curve.intensity_unit,
+    )
+
+
+def normalize(
+    curve: ScatteringCurve1D,
+    factor: float,
+    factor_error: Optional[float] = None,
+) -> ScatteringCurve1D:
+    """
+    Normalize a scattering curve by dividing the intensity by a scalar factor.
+
+    Typical uses include dividing by sample thickness, concentration, or
+    transmission to place intensity on a common scale.
+
+    Parameters
+    ----------
+    curve : ScatteringCurve1D
+        The scattering curve to normalize.
+    factor : float
+        Positive normalization divisor.
+    factor_error : float, optional
+        Absolute uncertainty on *factor*.  When provided, error propagation
+        accounts for both measurement and normalization uncertainties:
+        ``sigma_new = sqrt((sigma_I / factor)^2 + (I * factor_error / factor^2)^2)``.
+        When None (default), ``sigma_new = curve.error / factor``.
+
+    Returns
+    -------
+    ScatteringCurve1D
+        A new curve with ``intensity = curve.intensity / factor``.  The
+        original curve is not modified.
+
+    Raises
+    ------
+    ProcessingError
+        If *curve* is not a ``ScatteringCurve1D`` or if *factor* <= 0.
+    """
+    if not isinstance(curve, ScatteringCurve1D):
+        raise ProcessingError("'curve' must be a ScatteringCurve1D object.")
+    if factor <= 0:
+        raise ProcessingError(f"normalize: factor must be positive, got {factor}.")
+
+    new_intensity = curve.intensity / factor
+
+    new_error: Optional[np.ndarray] = None
+    if curve.error is not None:
+        if factor_error is not None:
+            new_error = np.sqrt(
+                (curve.error / factor) ** 2
+                + (curve.intensity * factor_error / factor**2) ** 2
+            )
+        else:
+            new_error = curve.error / factor
+
+    new_metadata = copy.deepcopy(curve.metadata)
+    if factor_error is not None:
+        history_entry = f"Normalized by factor {factor:.4g} +/- {factor_error:.4g}."
+    else:
+        history_entry = f"Normalized by factor {factor:.4g}."
+    new_metadata.setdefault("processing_history", []).append(history_entry)
+
+    return ScatteringCurve1D(
+        q=np.copy(curve.q),
         intensity=new_intensity,
         error=new_error,
         metadata=new_metadata,

@@ -54,11 +54,11 @@ def porod_analysis(
     where Kp is the Porod constant, n is the Porod exponent (typically 4
     for smooth 3D interfaces), and Bkg is a constant background.
 
-    If `fit_log_log` is True (default):
-        log10(I(q)) = log10(Kp) - n * log10(q)  (assuming Bkg is negligible or subtracted)
-        A linear fit of log10(I(q)) vs log10(q) yields:
-            slope = -n
-            intercept = log10(Kp) => Kp = 10^(intercept)
+    If ``fit_log_log`` is True (default)::
+
+        log10(I(q)) = log10(Kp) - n * log10(q)
+        slope = -n
+        intercept = log10(Kp)  =>  Kp = 10^intercept
 
     Alternatively, one can analyze the Porod plot I(q)*q^n vs q^(n-m) or similar.
     For simplicity, this initial version focuses on the log-log fit or

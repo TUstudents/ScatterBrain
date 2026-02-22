@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.processing import subtract_background
+from scatterbrain.processing import subtract_background, normalize
 from scatterbrain.utils import ProcessingError
 
 
@@ -192,3 +192,109 @@ class TestTypeErrors:
     def test_background_wrong_type(self, base_curve):
         with pytest.raises(TypeError, match="ScatteringCurve1D"):
             subtract_background(base_curve, [1, 2, 3])
+
+
+# ---------------------------------------------------------------------------
+# Tests for normalize
+# ---------------------------------------------------------------------------
+
+
+class TestNormalize:
+    """Tests for the normalize processing function."""
+
+    @pytest.fixture
+    def curve_with_error(self) -> ScatteringCurve1D:
+        q = np.linspace(0.01, 0.5, 50)
+        intensity = 1000.0 * np.exp(-(q**2) * 9.0)
+        error = intensity * 0.05
+        return ScatteringCurve1D(
+            q, intensity, error, q_unit="nm^-1", intensity_unit="a.u."
+        )
+
+    @pytest.fixture
+    def curve_no_error(self) -> ScatteringCurve1D:
+        q = np.linspace(0.01, 0.5, 50)
+        intensity = 500.0 * np.ones(50)
+        return ScatteringCurve1D(q, intensity, q_unit="nm^-1", intensity_unit="a.u.")
+
+    def test_intensity_divided_by_factor(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        result = normalize(curve_with_error, 2.5)
+        np.testing.assert_allclose(result.intensity, curve_with_error.intensity / 2.5)
+
+    def test_error_divided_by_factor_without_factor_error(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        result = normalize(curve_with_error, 4.0)
+        np.testing.assert_allclose(result.error, curve_with_error.error / 4.0)
+
+    def test_error_propagation_with_factor_error(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        factor = 4.0
+        factor_error = 0.2
+        result = normalize(curve_with_error, factor, factor_error=factor_error)
+        expected = np.sqrt(
+            (curve_with_error.error / factor) ** 2
+            + (curve_with_error.intensity * factor_error / factor**2) ** 2
+        )
+        np.testing.assert_allclose(result.error, expected)
+
+    def test_no_error_on_input_gives_none_error(
+        self, curve_no_error: ScatteringCurve1D
+    ) -> None:
+        result = normalize(curve_no_error, 3.0)
+        assert result.error is None
+
+    def test_original_curve_not_modified(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        original_intensity = curve_with_error.intensity.copy()
+        original_error = curve_with_error.error.copy()
+        normalize(curve_with_error, 2.0)
+        np.testing.assert_array_equal(curve_with_error.intensity, original_intensity)
+        np.testing.assert_array_equal(curve_with_error.error, original_error)
+
+    def test_processing_history_without_factor_error(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        result = normalize(curve_with_error, 2.5)
+        history = result.metadata["processing_history"]
+        normalize_entries = [e for e in history if "Normalized" in e]
+        assert len(normalize_entries) == 1
+        assert "2.5" in normalize_entries[0]
+        assert "+/-" not in normalize_entries[0]
+
+    def test_processing_history_with_factor_error(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        result = normalize(curve_with_error, 2.5, factor_error=0.1)
+        history = result.metadata["processing_history"]
+        normalize_entries = [e for e in history if "Normalized" in e]
+        assert len(normalize_entries) == 1
+        assert "+/-" in normalize_entries[0]
+
+    def test_raises_on_zero_factor(self, curve_with_error: ScatteringCurve1D) -> None:
+        with pytest.raises(ProcessingError, match="positive"):
+            normalize(curve_with_error, 0.0)
+
+    def test_raises_on_negative_factor(
+        self, curve_with_error: ScatteringCurve1D
+    ) -> None:
+        with pytest.raises(ProcessingError, match="positive"):
+            normalize(curve_with_error, -1.0)
+
+    def test_raises_on_wrong_curve_type(self) -> None:
+        with pytest.raises(ProcessingError, match="ScatteringCurve1D"):
+            normalize("not a curve", 1.0)  # type: ignore[arg-type]
+
+    def test_metadata_preserved(self, curve_with_error: ScatteringCurve1D) -> None:
+        curve_with_error.metadata["filename"] = "test.dat"
+        result = normalize(curve_with_error, 2.0)
+        assert result.metadata["filename"] == "test.dat"
+
+    def test_units_preserved(self, curve_with_error: ScatteringCurve1D) -> None:
+        result = normalize(curve_with_error, 2.0)
+        assert result.q_unit == curve_with_error.q_unit
+        assert result.intensity_unit == curve_with_error.intensity_unit

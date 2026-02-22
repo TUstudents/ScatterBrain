@@ -34,15 +34,14 @@ jobs:
 
       - name: Type check (mypy)
         run: uv run mypy scatterbrain
-        continue-on-error: true   # non-blocking until type annotations are complete
 
       - name: Run tests with coverage
         run: uv run pytest --cov=scatterbrain --cov-report=term-missing --cov-report=xml -q
 
-      - name: Run tutorial notebook
+      - name: Run tutorial notebooks
         env:
           MPLBACKEND: Agg
-        run: uv run pytest --nbmake notebooks/01_basic_workflow.ipynb
+        run: uv run pytest --nbmake notebooks/01_basic_workflow.ipynb notebooks/02_form_factor_fitting.ipynb
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4

@@ -9,7 +9,12 @@ import numpy as np
 import pytest
 
 from scatterbrain.core import ScatteringCurve1D
-from scatterbrain.modeling.form_factors import sphere_pq, _Q_EPSILON
+from scatterbrain.modeling.form_factors import (
+    sphere_pq,
+    cylinder_pq,
+    core_shell_sphere_pq,
+    _Q_EPSILON,
+)
 from scatterbrain.modeling.fitting import fit_model
 from scatterbrain.utils import FittingError
 
@@ -515,3 +520,150 @@ class TestFitModel:
         # Errors on parameters might be estimated based on unweighted residuals by curve_fit
         # but their interpretation is different than with weighted fits.
         assert not np.isnan(results["fitted_params_stderr"]["radius"])
+
+
+class TestCylinderPq:
+    """Tests for the cylinder_pq form factor."""
+
+    @pytest.fixture
+    def q_values(self) -> np.ndarray:
+        return np.geomspace(0.001, 5.0, 200)
+
+    def test_p0_equals_one(self) -> None:
+        q_near_zero = np.array([0.0, 1e-10, 1e-8])
+        pq = cylinder_pq(q_near_zero, radius=5.0, length=20.0)
+        np.testing.assert_allclose(pq, 1.0, atol=1e-6)
+
+    def test_non_negative(self, q_values: np.ndarray) -> None:
+        pq = cylinder_pq(q_values, radius=5.0, length=20.0)
+        assert np.all(pq >= 0.0)
+
+    def test_real_valued(self, q_values: np.ndarray) -> None:
+        pq = cylinder_pq(q_values, radius=5.0, length=20.0)
+        assert pq.dtype == np.float64
+        assert np.all(np.isfinite(pq))
+
+    def test_monotonically_decreases_at_low_q(self, q_values: np.ndarray) -> None:
+        """P(q) should start near 1 and decrease at low q."""
+        pq = cylinder_pq(q_values, radius=5.0, length=20.0)
+        assert pq[0] > 0.99
+        assert pq[-1] < pq[0]
+
+    def test_invalid_radius_raises(self) -> None:
+        with pytest.raises(ValueError, match="radius"):
+            cylinder_pq(np.array([0.1, 0.2]), radius=0.0, length=10.0)
+        with pytest.raises(ValueError, match="radius"):
+            cylinder_pq(np.array([0.1, 0.2]), radius=-1.0, length=10.0)
+
+    def test_invalid_length_raises(self) -> None:
+        with pytest.raises(ValueError, match="length"):
+            cylinder_pq(np.array([0.1, 0.2]), radius=5.0, length=0.0)
+        with pytest.raises(ValueError, match="length"):
+            cylinder_pq(np.array([0.1, 0.2]), radius=5.0, length=-5.0)
+
+    def test_output_shape_preserved(self) -> None:
+        q = np.linspace(0.01, 1.0, 50)
+        pq = cylinder_pq(q, radius=3.0, length=12.0)
+        assert pq.shape == q.shape
+
+
+class TestCoreShellSpherePq:
+    """Tests for the core_shell_sphere_pq form factor."""
+
+    @pytest.fixture
+    def q_values(self) -> np.ndarray:
+        return np.geomspace(0.001, 5.0, 200)
+
+    def test_p0_equals_one(self) -> None:
+        q_near_zero = np.array([0.0, 1e-10])
+        pq = core_shell_sphere_pq(q_near_zero, radius_core=5.0, shell_thickness=2.0)
+        np.testing.assert_allclose(pq, 1.0, atol=1e-6)
+
+    def test_non_negative(self, q_values: np.ndarray) -> None:
+        pq = core_shell_sphere_pq(q_values, radius_core=5.0, shell_thickness=2.0)
+        assert np.all(pq >= 0.0)
+
+    def test_zero_shell_recovers_sphere(self, q_values: np.ndarray) -> None:
+        """shell_thickness=0 with contrast_shell=0 reduces to sphere_pq."""
+        pq_css = core_shell_sphere_pq(
+            q_values,
+            radius_core=5.0,
+            shell_thickness=0.0,
+            contrast_core=1.0,
+            contrast_shell=0.0,
+        )
+        pq_sphere = sphere_pq(q_values, radius=5.0)
+        np.testing.assert_allclose(pq_css, pq_sphere, atol=1e-6)
+
+    def test_equal_contrasts_returns_ones(self, q_values: np.ndarray) -> None:
+        pq = core_shell_sphere_pq(
+            q_values,
+            radius_core=5.0,
+            shell_thickness=2.0,
+            contrast_core=0.7,
+            contrast_shell=0.7,
+        )
+        np.testing.assert_allclose(pq, 1.0)
+
+    def test_invalid_radius_raises(self) -> None:
+        with pytest.raises(ValueError, match="radius_core"):
+            core_shell_sphere_pq(np.array([0.1]), radius_core=0.0, shell_thickness=1.0)
+
+    def test_negative_shell_thickness_raises(self) -> None:
+        with pytest.raises(ValueError, match="shell_thickness"):
+            core_shell_sphere_pq(np.array([0.1]), radius_core=5.0, shell_thickness=-1.0)
+
+    def test_output_shape_preserved(self) -> None:
+        q = np.linspace(0.01, 1.0, 50)
+        pq = core_shell_sphere_pq(q, radius_core=3.0, shell_thickness=1.0)
+        assert pq.shape == q.shape
+
+
+class TestFitModelLmfit:
+    """Tests for the lmfit-specific keys added to fit_model results."""
+
+    @pytest.fixture
+    def simple_fit_result(self) -> dict:
+        """A successful sphere fit result."""
+        q = np.geomspace(0.01, 1.0, 50)
+        i = 1000.0 * sphere_pq(q, 5.0) + 10.0
+        e = np.sqrt(i) * 0.05
+        curve = ScatteringCurve1D(q, i, e)
+        return fit_model(
+            curve,
+            sphere_pq,
+            param_names=["radius"],
+            initial_params=[1000.0, 10.0, 5.0],
+            param_bounds=([0, 0, 0.1], [np.inf, np.inf, 50.0]),
+        )
+
+    def test_lmfit_result_key_present(self, simple_fit_result: dict) -> None:
+        assert simple_fit_result is not None
+        assert "lmfit_result" in simple_fit_result
+
+    def test_confidence_intervals_key_present(self, simple_fit_result: dict) -> None:
+        assert "confidence_intervals" in simple_fit_result
+
+    def test_fitted_params_consistent_with_true_values(
+        self, simple_fit_result: dict
+    ) -> None:
+        assert simple_fit_result is not None
+        fp = simple_fit_result["fitted_params"]
+        assert np.isclose(fp["radius"], 5.0, rtol=0.01)
+        assert np.isclose(fp["scale"], 1000.0, rtol=0.02)
+        assert np.isclose(fp["background"], 10.0, atol=1.0)
+
+    def test_existing_keys_still_present(self, simple_fit_result: dict) -> None:
+        for key in (
+            "fitted_params",
+            "fitted_params_stderr",
+            "covariance_matrix",
+            "fit_curve",
+            "chi_squared_reduced",
+            "success",
+            "message",
+            "q_fit_min",
+            "q_fit_max",
+            "num_points_fit",
+        ):
+            assert key in simple_fit_result, f"Missing key: {key}"

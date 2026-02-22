@@ -35,12 +35,51 @@ class GuinierResult(TypedDict):
     q_fit_max: float
     num_points_fit: int
     valid_guinier_range_criteria: str
+    weighted: bool
 
 
 #
 # <<< PASTE THE ENTIRE guinier_fit FUNCTION CODE FROM THE PREVIOUS RESPONSE HERE >>>
 # (The one starting with "def guinier_fit(...)")
 #
+def _weighted_linregress(
+    x: np.ndarray, y: np.ndarray, w: np.ndarray
+) -> Tuple[float, float, float, float]:
+    """Weighted least-squares fit of y = slope*x + intercept.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Independent and dependent variables.
+    w : np.ndarray
+        Weights (w_i = 1 / sigma_yi).  The minimized quantity is
+        sum_i w_i^2 * (y_i - slope*x_i - intercept)^2.
+
+    Returns
+    -------
+    slope, intercept, stderr_slope, stderr_intercept : float
+    """
+    w2 = w**2
+    sw0 = np.sum(w2)
+    sw1 = np.sum(w2 * x)
+    sw2 = np.sum(w2 * x**2)
+    swy = np.sum(w2 * y)
+    swxy = np.sum(w2 * x * y)
+
+    det = sw2 * sw0 - sw1**2
+    if det == 0.0:
+        return np.nan, np.nan, np.nan, np.nan
+
+    slope = (swxy * sw0 - swy * sw1) / det
+    intercept = (sw2 * swy - sw1 * swxy) / det
+
+    # Covariance matrix C = (X^T W^2 X)^{-1}
+    stderr_slope = float(np.sqrt(sw0 / det))
+    stderr_intercept = float(np.sqrt(sw2 / det))
+
+    return float(slope), float(intercept), stderr_slope, stderr_intercept
+
+
 def guinier_fit(
     curve: ScatteringCurve1D,
     q_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
@@ -48,16 +87,17 @@ def guinier_fit(
     qrg_limit_min: Optional[float] = None,
     auto_q_selection_fraction: float = 0.1,
     min_points: int = 5,
+    use_errors: bool = True,
 ) -> Optional[GuinierResult]:
     """
     Performs Guinier analysis on a 1D scattering curve to determine the
     Radius of Gyration (Rg) and forward scattering intensity (I0).
 
-    The Guinier approximation is: I(q) = I(0) * exp(-(q*Rg)^2 / 3)
-    This can be linearized to: ln(I(q)) = ln(I(0)) - (Rg^2 / 3) * q^2
-    A linear fit of ln(I(q)) vs q^2 yields:
-        slope = -Rg^2 / 3  => Rg = sqrt(-3 * slope)
-        intercept = ln(I(0)) => I(0) = exp(intercept)
+    The Guinier approximation linearised form is::
+
+        ln I(q) = ln I(0) - (Rg^2/3) * q^2
+        slope = -Rg^2/3  =>  Rg = sqrt(-3*slope)
+        intercept = ln I(0)  =>  I(0) = exp(intercept)
 
     Parameters
     ----------
@@ -96,14 +136,14 @@ def guinier_fit(
         - 'slope': Slope of the linear fit.
         - 'intercept': Intercept of the linear fit.
         - 'r_value': Pearson correlation coefficient of the fit.
-        - 'p_value': Two-sided p-value for a hypothesis test whose null
-                     hypothesis is that the slope is zero.
+        - 'p_value': Two-sided p-value for the null hypothesis that slope is zero.
         - 'stderr_slope': Standard error of the estimated slope.
         - 'stderr_intercept': Standard error of the estimated intercept.
         - 'q_fit_min': Minimum q value used in the fit.
         - 'q_fit_max': Maximum q value used in the fit.
         - 'num_points_fit': Number of points used in the fit.
         - 'valid_guinier_range_criteria': String describing how the range was determined.
+
         Returns None if a fit cannot be performed due to a data-driven condition
         (e.g., insufficient data points, no positive intensities, q_range results
         in too few points). A WARNING-level log message is emitted describing the
@@ -234,12 +274,14 @@ def guinier_fit(
                     q_fit_min_val,
                     q_fit_max_val,
                 )
-                q_fit_max_val = q_data[
-                    min(
-                        len(q_data) - 1,
-                        np.searchsorted(q_data, q_fit_min_val) + min_points,
-                    )
-                ]
+                q_fit_max_val = float(
+                    q_data[
+                        min(
+                            len(q_data) - 1,
+                            int(np.searchsorted(q_data, q_fit_min_val)) + min_points,
+                        )
+                    ]
+                )
 
             fit_indices = np.where(
                 (q_data >= q_fit_min_val) & (q_data <= q_fit_max_val)
@@ -259,19 +301,43 @@ def guinier_fit(
     q_fit_actual_min = q_data[fit_indices].min()
     q_fit_actual_max = q_data[fit_indices].max()
 
-    try:
-        regression_result = linregress(q_sq_fit, ln_i_fit)
-        slope = regression_result.slope
-        intercept = regression_result.intercept
-        r_value = regression_result.rvalue
-        p_value = regression_result.pvalue
-        stderr_slope = regression_result.stderr
-        stderr_intercept = regression_result.intercept_stderr
-    except ValueError:  # pragma: no cover
-        logger.warning(
-            "Guinier fit: ValueError during final linear regression. Check selected data."
+    # Determine whether to use weighted regression
+    i_fit_points = i_data[fit_indices]
+    err_fit_points = (
+        curve.error[valid_i_mask][fit_indices]
+        if (use_errors and curve.error is not None)
+        else None
+    )
+    use_wls = (
+        err_fit_points is not None
+        and np.all(err_fit_points > 0)
+        and np.all(i_fit_points > 0)
+    )
+
+    if use_wls:
+        # w_i = I_i / sigma_I_i = 1 / sigma_lnI_i
+        weights = i_fit_points / err_fit_points
+        slope, intercept, stderr_slope, stderr_intercept = _weighted_linregress(
+            q_sq_fit, ln_i_fit, weights
         )
-        return None
+        r_value = np.nan
+        p_value = np.nan
+        did_weight = True
+    else:
+        try:
+            regression_result = linregress(q_sq_fit, ln_i_fit)
+            slope = float(regression_result.slope)
+            intercept = float(regression_result.intercept)
+            r_value = float(regression_result.rvalue)
+            p_value = float(regression_result.pvalue)
+            stderr_slope = float(regression_result.stderr)
+            stderr_intercept = float(regression_result.intercept_stderr)
+        except ValueError:  # pragma: no cover
+            logger.warning(
+                "Guinier fit: ValueError during final linear regression. Check selected data."
+            )
+            return None
+        did_weight = False
 
     if slope >= 0:
         logger.warning(
@@ -293,15 +359,14 @@ def guinier_fit(
             "q_fit_max": q_fit_actual_max,
             "num_points_fit": len(q_sq_fit),
             "valid_guinier_range_criteria": criteria_str + " (Warning: Positive Slope)",
+            "weighted": did_weight,
         }
 
-    rg = np.sqrt(-3 * slope)
-    i0 = np.exp(intercept)
+    rg = float(np.sqrt(-3 * slope))
+    i0 = float(np.exp(intercept))
 
-    rg_err = (
-        (1.5 / rg) * stderr_slope if rg > 0 and stderr_slope is not None else np.nan
-    )
-    i0_err = i0 * stderr_intercept if stderr_intercept is not None else np.nan
+    rg_err = (1.5 / rg) * stderr_slope if rg > 0 else np.nan
+    i0_err = i0 * stderr_intercept
 
     return {
         "Rg": rg,
@@ -318,4 +383,5 @@ def guinier_fit(
         "q_fit_max": q_fit_actual_max,
         "num_points_fit": len(q_sq_fit),
         "valid_guinier_range_criteria": criteria_str.strip(),
+        "weighted": did_weight,
     }

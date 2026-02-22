@@ -8,7 +8,7 @@ and (eventually) saving processed data or analysis results.
 
 import logging
 import pathlib
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, Union, List, Callable
 
 import numpy as np
 import pandas as pd  # Using pandas for robust CSV/text file parsing
@@ -27,7 +27,7 @@ def load_ascii_1d(
     delimiter: Optional[str] = None,
     comments: Optional[str] = "#",
     use_names: Optional[List[str]] = None,
-    metadata_func: Optional[callable] = None,
+    metadata_func: Optional[Callable[..., Any]] = None,
     encoding: str = "utf-8",
     **kwargs: Any,
 ) -> ScatteringCurve1D:
@@ -359,8 +359,9 @@ def save_ascii_1d(
     header_str = "\n".join(all_header_lines)
 
     # Assemble data array
-    columns = [curve.q, curve.intensity]
+    columns: List[np.ndarray] = [curve.q, curve.intensity]
     if write_error:
+        assert curve.error is not None
         columns.append(curve.error)
     data = np.column_stack(columns)
 
